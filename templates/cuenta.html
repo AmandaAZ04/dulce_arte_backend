@@ -1,1 +1,31 @@
-{% extends 'base.html' %}{% block page %}cuenta{% endblock %}{% block content %}<section class="auth-layout wrap"><div class="auth-story"><span class="eyebrow">BIENVENIDA A DULCE ARTE</span><h1>Lo bueno<br>se comparte.<br><em>Lo dulce también.</em></h1><p>Tu próximo momento favorito empieza aquí.</p><span class="auth-flower">✳</span></div><div class="auth-card"><span class="eyebrow" id="auth-eyebrow">TU RINCÓN DULCE</span><h2 id="auth-title">Qué gusto verte.</h2><p id="auth-description">Ingresa para encargar y seguir tus pedidos.</p><form id="auth-form"><label id="name-label" hidden>Tu nombre<input name="nombre" autocomplete="given-name" minlength="2" maxlength="100" placeholder="¿Cómo te llamas?"></label><label>Correo electrónico<input name="email" type="email" required autocomplete="email" placeholder="tu@correo.cl"></label><label>Contraseña<input name="password" type="password" minlength="8" required autocomplete="current-password" placeholder="Tu contraseña"></label><p class="form-error" id="auth-error" role="alert"></p><button class="button full">Entrar a mi cuenta →</button></form><p class="auth-toggle">¿Aún no tienes cuenta? <button class="text-link" id="register-toggle">Regístrate aquí</button></p><p class="muted small-text">El equipo del local ingresa con su cuenta autorizada.</p></div></section>{% endblock %}
+{% extends 'base.html' %}{% block page %}cuenta{% endblock %}{% block content %}
+<section class="auth-layout wrap">
+  <div class="auth-story">
+    <span class="eyebrow">BIENVENIDA A DULCE ARTE</span>
+    <h1>Lo bueno<br>se comparte.<br><em>Lo dulce también.</em></h1>
+    <p>Tu próximo momento favorito empieza aquí.</p>
+    <span class="auth-flower" aria-hidden="true">✳</span>
+  </div>
+  <div class="auth-card">
+    <div class="auth-tabs" role="tablist" aria-label="Tipo de cuenta">
+      <button type="button" class="active" data-role-tab="cliente" role="tab" aria-selected="true">Cliente</button>
+      <button type="button" data-role-tab="admin" role="tab" aria-selected="false">Administración</button>
+    </div>
+    <span class="eyebrow" id="auth-eyebrow">TU RINCÓN DULCE</span>
+    <h2 id="auth-title">Qué gusto verte.</h2>
+    <p id="auth-description">Inicia sesión o crea tu cuenta para encargar y seguir tus compras.</p>
+    <div class="auth-mode-tabs" id="auth-mode-tabs" role="tablist" aria-label="Acceso de cliente">
+      <button type="button" class="active" data-mode-tab="login" role="tab" aria-selected="true">Iniciar sesión</button>
+      <button type="button" data-mode-tab="registro" role="tab" aria-selected="false">Crear cuenta</button>
+    </div>
+    <form id="auth-form">
+      <label id="name-label" hidden>Tu nombre<input name="nombre" autocomplete="given-name" minlength="2" maxlength="100" placeholder="¿Cómo te llamas?"></label>
+      <label>Correo electrónico<input name="email" type="email" required autocomplete="email" placeholder="tu@correo.cl"></label>
+      <label>Contraseña<input name="password" type="password" minlength="8" required autocomplete="current-password" placeholder="Tu contraseña"></label>
+      <p class="form-error" id="auth-error" role="alert"></p>
+      <button class="button full" id="auth-submit">Entrar a mi cuenta →</button>
+    </form>
+    <p class="auth-hint muted small-text" id="auth-hint">Tu cuenta de cliente sólo muestra tus compras.</p>
+  </div>
+</section>
+{% endblock %}

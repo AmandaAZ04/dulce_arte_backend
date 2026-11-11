@@ -21,12 +21,13 @@ class BOMSerializer(serializers.Serializer):
 
 class RecetaSerializer(serializers.ModelSerializer):
     ingredientes=serializers.SerializerMethodField()
+    ingredientes_publicos=serializers.SerializerMethodField()
     disponible=serializers.SerializerMethodField()
     unidades_disponibles=serializers.SerializerMethodField()
     bom=BOMSerializer(many=True,write_only=True,required=False)
     class Meta:
         model=Receta
-        fields=['id','nombre','descripcion','categoria','precio','porciones','minutos','pasos','alergenos','imagen','activa','ingredientes','disponible','unidades_disponibles','bom']
+        fields=['id','nombre','descripcion','categoria','precio','porciones','minutos','pasos','alergenos','imagen','activa','ingredientes','ingredientes_publicos','disponible','unidades_disponibles','bom']
     def to_representation(self,instance):
         data=super().to_representation(instance)
         request=self.context.get('request')
@@ -35,6 +36,8 @@ class RecetaSerializer(serializers.ModelSerializer):
         return data
     def get_ingredientes(self,r):
         return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'unidad':m.insumo.unidad,'cantidad':str(m.cantidad),'disponible':str(m.insumo.disponible),'falta':str(max(0,m.cantidad-m.insumo.disponible))} for m in r.ingredientes.all()]
+    def get_ingredientes_publicos(self,r):
+        return list(r.ingredientes.select_related('insumo').order_by('pk').values_list('insumo__nombre',flat=True))
     def get_unidades_disponibles(self,r):
         return min([int(m.insumo.disponible//m.cantidad) for m in r.ingredientes.all()] or [0])
     def get_disponible(self,r): return r.activa and self.get_unidades_disponibles(r)>0
