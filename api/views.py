@@ -18,7 +18,7 @@ from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.throttling import ScopedRateThrottle
 from .models import Insumo,Receta,Pedido,Movimiento
 from .serializer import *
-from . import services
+from . import agenda, services
 from .mail import comprobante,qr_png
 
 def usuario_data(u):
@@ -112,6 +112,8 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
         datos = serializer.validated_data
         if not (datos['diseno'].strip() or datos['preferencias'].strip()):
             raise ValidationError('Describe el diseño o los ingredientes que quieres personalizar. Para una compra estándar, usa el carrito.')
+        if not Pedido.objects.filter(cliente=request.user,solicitud=datos['solicitud']).exists():
+            agenda.validar_capacidad(datos['retiro'], [datos])
         pedido = services.crear_pedido(request.user, datos)
         return Response(self.get_serializer(pedido).data, status=status.HTTP_201_CREATED)
     @action(detail=True,methods=['post'])
@@ -127,6 +129,13 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
     def estado(self,request,pk=None):
         self.get_object(); p=services.cambiar_estado(int(pk),request.user,request.data.get('estado'))
         return Response(self.get_serializer(p).data)
+    @action(detail=True,methods=['post'],permission_classes=[IsAdminUser],url_path='rechazar-cotizacion')
+    def rechazar_cotizacion(self, request, pk=None):
+        self.get_object()
+        serializer = RechazarCotizacionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pedido = services.rechazar_cotizacion(int(pk), request.user, **serializer.validated_data)
+        return Response(self.get_serializer(pedido).data)
     @action(detail=False,methods=['post'],permission_classes=[IsAdminUser])
     def retirar(self,request):
         s=RetiroSerializer(data=request.data);s.is_valid(raise_exception=True)
@@ -135,14 +144,14 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True,methods=['get'])
     def comprobante(self,request,pk=None):
         p=self.get_object()
-        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO']:
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO']:
             raise NotFound()
         r=HttpResponse(comprobante(p),content_type='application/pdf')
         r['Content-Disposition']=f'attachment; filename="{p.codigo}.pdf"';r['Cache-Control']='no-store';return r
     @action(detail=True,methods=['get'])
     def qr(self,request,pk=None):
         p=self.get_object()
-        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO']:
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO']:
             raise NotFound()
         r=HttpResponse(qr_png(p),content_type='image/png');r['Cache-Control']='no-store';return r
 

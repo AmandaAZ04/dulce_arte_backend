@@ -68,6 +68,21 @@ def aceptar(pedido_id, usuario):
     return p
 
 @transaction.atomic
+def rechazar_cotizacion(pedido_id, usuario, motivo, fecha_sugerida, alternativas):
+    if not usuario.is_staff:
+        raise PermissionDenied()
+    pedido = Pedido.objects.select_for_update().get(pk=pedido_id)
+    if pedido.estado not in (Pedido.Estado.COTIZACION, Pedido.Estado.COTIZADO):
+        raise ValidationError('Solo puedes rechazar cotizaciones pendientes.')
+    pedido.estado = Pedido.Estado.COTIZACION_RECHAZADA
+    pedido.nota_equipo = motivo
+    pedido.fecha_sugerida = fecha_sugerida
+    pedido.alternativas = alternativas
+    pedido.save(update_fields=['estado', 'nota_equipo', 'fecha_sugerida', 'alternativas', 'actualizado'])
+    registrar(pedido, usuario, 'El equipo rechazó la solicitud de cotización')
+    return pedido
+
+@transaction.atomic
 def cambiar_estado(pedido_id, usuario, nuevo):
     p=Pedido.objects.select_for_update().get(pk=pedido_id)
     if nuevo==p.estado: return p

@@ -1,3 +1,4 @@
+from .agenda import validar_horario
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
@@ -76,34 +77,26 @@ class NuevoPedidoSerializer(serializers.Serializer):
     diseno=serializers.CharField(required=False,allow_blank=True,max_length=1500,default='')
     preferencias=serializers.CharField(required=False,allow_blank=True,max_length=1500,default='')
     solicitud=serializers.UUIDField()
-    def validate_retiro(self,v):
-        from datetime import timedelta
-        if v < timezone.now()+timedelta(hours=24): raise serializers.ValidationError('Pide con al menos 24 horas de anticipación.')
-        if v > timezone.now()+timedelta(days=90): raise serializers.ValidationError('Elige una fecha dentro de los próximos 90 días.')
-        hora=timezone.localtime(v)
-        if not 10<=hora.hour<19: raise serializers.ValidationError('Los retiros son entre 10:00 y 18:59.')
-        return v
+    def validate_retiro(self, value):
+        return validar_horario(value)
 
 class CheckoutItemSerializer(serializers.Serializer):
     receta=serializers.PrimaryKeyRelatedField(queryset=Receta.objects.filter(activa=True))
     cantidad=serializers.IntegerField(min_value=1,max_value=20)
 
-class CheckoutSerializer(serializers.Serializer):
+class CarritoSerializer(serializers.Serializer):
     items=CheckoutItemSerializer(many=True,min_length=1,max_length=10)
-    retiro=serializers.DateTimeField()
-    telefono=serializers.RegexField(r'^\+?[0-9 ()-]{8,25}$')
-    solicitud=serializers.UUIDField()
     def validate_items(self,v):
         ids=[x['receta'].pk for x in v]
         if len(ids)!=len(set(ids)): raise serializers.ValidationError('El carrito tiene productos repetidos. Ajusta su cantidad en el carrito.')
         return v
-    def validate_retiro(self,v):
-        from datetime import timedelta
-        if v < timezone.now()+timedelta(hours=24): raise serializers.ValidationError('Pide con al menos 24 horas de anticipación.')
-        if v > timezone.now()+timedelta(days=90): raise serializers.ValidationError('Elige una fecha dentro de los próximos 90 días.')
-        hora=timezone.localtime(v)
-        if not 10<=hora.hour<19: raise serializers.ValidationError('Los retiros son entre 10:00 y 18:59.')
-        return v
+
+class CheckoutSerializer(CarritoSerializer):
+    retiro=serializers.DateTimeField()
+    telefono=serializers.RegexField(r'^\+?[0-9 ()-]{8,25}$')
+    solicitud=serializers.UUIDField()
+    def validate_retiro(self, value):
+        return validar_horario(value)
 
 class HistorialSerializer(serializers.ModelSerializer):
     etiqueta=serializers.CharField(source='get_estado_display',read_only=True)
@@ -120,7 +113,7 @@ class PedidoSerializer(serializers.ModelSerializer):
     pago_estado=serializers.SerializerMethodField()
     class Meta:
         model=Pedido
-        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','estado','etiqueta','pagado','pago_id','pago_estado','token','cliente_nombre','cliente_email','historial','materiales','creado']
+        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','fecha_sugerida','alternativas','estado','etiqueta','pagado','pago_id','pago_estado','token','cliente_nombre','cliente_email','historial','materiales','creado']
         read_only_fields=fields
     def get_cliente_nombre(self,p): return p.cliente.get_full_name() or p.cliente.username
     def get_materiales(self,p):
@@ -140,6 +133,19 @@ class CotizacionSerializer(serializers.Serializer):
         ids=[m['insumo'].pk for m in v]
         if len(ids)!=len(set(ids)): raise serializers.ValidationError('No repitas ingredientes.')
         return v
+
+class RechazarCotizacionSerializer(serializers.Serializer):
+    motivo = serializers.CharField(max_length=1500)
+    fecha_sugerida = serializers.DateTimeField(required=False, allow_null=True, default=None)
+    alternativas = serializers.CharField(max_length=1500, required=False, allow_blank=True, default='')
+
+    def validate_fecha_sugerida(self, value):
+        if value is None:
+            return value
+        if value <= timezone.now():
+            raise serializers.ValidationError('Sugiere una fecha futura.')
+        return validar_horario(value)
+
 
 class AjusteSerializer(serializers.Serializer):
     cantidad=serializers.DecimalField(max_digits=12,decimal_places=2)

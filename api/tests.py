@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework.exceptions import ValidationError,PermissionDenied
 from .models import *
-from . import services
+from . import agenda, services
 from .mail import comprobante,qr_png
 
 PASSWORD='PruebaDulce!2026'
@@ -124,6 +124,32 @@ class NegocioTests(TestCase):
         response=self.client.get('/equipo/')
         self.assertContains(response,'/static/dulce/equipo.js')
         self.assertNotContains(response,'href="/admin/"')
+
+    def test_agenda_salta_domingo_y_suma_pedidos_pendientes(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        chile = ZoneInfo('America/Santiago')
+        sabado = datetime(2026, 11, 14, 18, 0, tzinfo=chile)
+        items = [{'receta': self.recipe, 'cantidad': 1}]
+        with patch('api.agenda.timezone.now', return_value=sabado):
+            self.assertEqual(agenda.primer_retiro(items), datetime(2026, 11, 16, 10, 0, tzinfo=chile))
+            self.order(cantidad=2)
+            self.assertEqual(agenda.primer_retiro(items), datetime(2026, 11, 16, 12, 0, tzinfo=chile))
+            with self.assertRaises(ValidationError):
+                agenda.validar_horario(sabado + timedelta(days=1))
+
+    def test_equipo_rechaza_cotizacion_y_cliente_ve_sugerencias(self):
+        pedido = self.order(diseno='Flores')
+        url = f'/api/pedidos/{pedido.pk}/rechazar-cotizacion/'
+        datos = {'motivo':'Faltan insumos','alternativas':'La misma torta de 8 porciones'}
+        self.assertEqual(self.api.post(url, datos, format='json').status_code,403)
+        equipo = APIClient()
+        equipo.force_authenticate(self.staff)
+        self.assertEqual(equipo.post(url, datos, format='json').status_code,200)
+        respuesta = self.api.get(f'/api/pedidos/{pedido.pk}/').data
+        self.assertEqual(respuesta['estado'],'COTIZACION_RECHAZADA')
+        self.assertEqual(respuesta['nota_equipo'],datos['motivo'])
+        self.assertEqual(respuesta['alternativas'],datos['alternativas'])
 
     def test_demo_conserva_existencias_y_carga_recetas(self):
         call_command('cargar_demo',verbosity=0)

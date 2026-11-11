@@ -302,7 +302,11 @@ label { color: var(--chocolate); font-size: 11px; font-weight: 700; }
 .product-page .product-detail-image img { min-height: 360px; padding: 28px; }
 .product-page .product-detail-copy { padding-block: 8px; }
 .product-page .product-detail-copy h2 { font-size: clamp(34px,4vw,50px); }
-.product-buy-card { display: grid; grid-template-columns: 1fr minmax(260px,.75fr); gap: 36px; align-items: center; margin: 34px 0 0 auto; max-width: 810px; padding: 26px 30px; border: 1px solid var(--line); border-radius: 20px; background: #fffaf6; box-shadow: var(--shadow-soft); }
+.product-buy-card { margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fffaf6; }
+.product-buy-card .text-link { justify-self: start; margin-top: 5px; }
+.purchase-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 20px; }
+.purchase-tabs a { padding: 9px 18px; border-radius: 99px; border: 1px solid var(--line); }
+.purchase-tabs a[aria-current="page"] { color: white; background: var(--chocolate); border-color: var(--chocolate); }
 .product-buy-card h2 { margin: 7px 0; color: var(--chocolate); font-size: 24px; }
 .product-buy-card p { color: var(--muted); font-size: 12px; line-height: 1.65; }
 .product-purchase-controls { display: grid; gap: 11px; }
@@ -350,7 +354,8 @@ dialog:has(.product-detail) { width: min(860px, calc(100% - 30px)); }
 
 dialog { border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 30px 90px rgba(45,31,22,.22); }
 dialog::backdrop { background: rgba(54,40,32,.55); backdrop-filter: blur(5px); }
-.modal-close { display: grid; width: 37px; height: 37px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--chocolate); background: white; }
+.modal-close { display: grid; width: 37px; height: 37px; padding: 0; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--chocolate); background: white; }
+.modal-close svg { display: block; pointer-events: none; }
 .modal-close:hover { color: var(--rose); background: var(--pink); }
 .modal-product img { padding: 6px; border: 1px solid var(--line); background: var(--peach); }
 .modal-product h2 { color: var(--chocolate); }
