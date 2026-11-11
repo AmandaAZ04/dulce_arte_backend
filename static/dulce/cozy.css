@@ -535,5 +535,4 @@ td { border-color: var(--line); }
 [data-stock-level="low"] > td { background: #fff0c1; border-color: #ecd998; color: #684b15; }
 [data-stock-level="empty"] .stock-available,
 [data-stock-level="low"] .stock-available { font-weight: 700; }
-[data-stock-level="empty"] .stock-available small,
-[data-stock-level="low"] .stock-available small { color: inherit; }
+.stock-actions { display: flex; align-items: center; gap: 14px; }
