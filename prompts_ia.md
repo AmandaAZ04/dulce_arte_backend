@@ -1,49 +1,14 @@
-# Registro de apoyo de IA
+# Registro de apoyo de IA en el frontend
 
-**Proyecto:** Dulce Arte
-**Asignatura:** Desarrollo Backend
+**Proyecto:** Dulce Arte · Tema 3  
+**Asignatura:** Desarrollo Backend · IEC-N4-C1  
 **Estudiante:** Amanda Angélica Álvarez Álvarez
 
-Este archivo registra el uso de IA como apoyo. El diseño, la adaptación al caso y las pruebas fueron revisados antes de incorporarse al proyecto.
+Este registro se centra en el apoyo de IA aplicado a la interfaz web de Dulce Arte.
 
-## Análisis de la evaluación
-
-**Consulta:** Lee la pauta de Evaluación 3 y el proyecto 3. Identifica funcionalidades, requisitos técnicos, entregables y rúbrica.
-
-**Apoyo aplicado:** Se organizó el alcance en pedidos personalizados, Kanban, listas de materiales, inventario, retiro presencial, Django Admin, PostgreSQL y despliegue EC2.
-
-## Modelo de datos
-
-**Consulta:** Propón un modelo normalizado para una pastelería que maneje recetas, ingredientes, pedidos, cotizaciones, inventario y estados de cocina.
-
-**Apoyo aplicado:** Se separaron `Receta`, `Insumo`, `IngredienteReceta`, `Pedido`, `MaterialPedido`, `Movimiento` e `Historial`. Cada pedido conserva una copia de sus materiales aunque una receta cambie.
-
-## Inventario
-
-**Consulta:** Define una regla segura para reservar ingredientes al confirmar un pedido y descontarlos al iniciar la preparación, evitando sobreventa y doble descuento.
-
-**Apoyo aplicado:** Se usaron transacciones Django, bloqueos de fila (`select_for_update`), reservas y pruebas de pedidos simultáneos.
-
-## Interfaz
-
-**Consulta:** Diseña una vista cálida para clientes y otra para el equipo, con recetario, Kanban e inventario que muestre los ingredientes faltantes en rojo.
-
-**Apoyo aplicado:** Se construyeron templates Django, CSS responsivo y JavaScript que consume la API del mismo dominio. Las recetas no disponibles se ven grises y muestran `disponible/necesario`.
-
-## QR y retiro
-
-**Consulta:** Diseña retiro presencial con QR sin exponer datos privados ni permitir que el enlace por sí solo entregue el pedido.
-
-**Apoyo aplicado:** Se usa un UUID no predecible para seguimiento mínimo. Solo una cuenta `is_staff` puede confirmar pago y retiro en el mesón.
-
-## Despliegue
-
-**Consulta:** Crea una guía de despliegue de Django con PostgreSQL en Ubuntu EC2 usando Gunicorn, systemd y Nginx, con claves fuera de Git.
-
-**Apoyo aplicado:** Se agregaron archivos de ejemplo y una guía que mantiene variables privadas en `/etc/dulce_arte/dulce_arte.env`.
-
-## Revisión del tema 3
-
-- Consulta: «Revisa que todo funcione, arregla lo que esté mal y deja el inventario, el recetario y los pedidos en la página de Dulce Arte».
-- Apoyo: comparación con la pauta, recuperación de las secciones del taller, formulario de cotización en la ficha, filtros de inventario, recetas de ejemplo y pruebas de los flujos.
-- Decisión del proyecto: retiro presencial con QR y comprobante, según la modalidad indicada para la pastelería.
+| Área | Consulta | Apoyo aplicado |
+| --- | --- | --- |
+| Diseño y navegación | Diseñar una interfaz cálida para la pastelería, con vistas para clientes y para el equipo. | Se organizaron las pantallas, la navegación y los estilos adaptables a distintos tamaños de pantalla. |
+| Vitrina y carrito | Abrir una ficha al pulsar la imagen y mostrar ingredientes, precio y porciones. | Se preparó la ficha del producto y se ajustaron los controles para elegir cantidades, agregar productos y continuar al pago. |
+| Pedidos y cotizaciones | Separar las cotizaciones de las compras y mostrar las respuestas del equipo y los cambios de estado. | Se diseñaron las pestañas, las etiquetas de estado, la actualización del seguimiento y el acceso al comprobante con QR. |
+| Taller e inventario | Mostrar el tablero de cocina y destacar los ingredientes con poca disponibilidad. | Se ajustaron la vista Kanban, los indicadores de faltantes en cotizaciones y los colores de las filas de inventario. |
