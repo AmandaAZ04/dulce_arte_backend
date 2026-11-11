@@ -339,6 +339,13 @@ dialog:has(.product-detail) { width: min(860px, calc(100% - 30px)); }
 .order-card { padding: 25px; border: 1px solid var(--line); border-radius: 21px; background: var(--paper); box-shadow: 0 8px 24px rgba(92,61,46,.045); transition: box-shadow .2s ease, transform .2s ease; }
 .order-card:hover { box-shadow: var(--shadow-soft); transform: translateY(-2px); }
 .order-header h3 { color: var(--chocolate); }
+.order-header { align-items: flex-start; }
+.order-header .badge { align-self: flex-start; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; max-width: 48%; min-height: 28px; padding: 5px 11px; text-align: center; line-height: 1.3; }
+.order-header .badge.pink { color: #8a3a2a; }
+.preparing-note { margin: 0 0 12px; color: #526440; font-weight: 700; }
+.bom-row .bom-availability { grid-column: 1 / -1; margin: 0 0 6px; color: var(--muted); }
+.bom-row.stock-short .bom-availability, .bom-row.stock-short select, .bom-row option.stock-short { color: #9a3328; }
+.bom-row.stock-short select, .bom-row.stock-short input { border-color: #c56b5e; background: #fff4f0; }
 .order-meta { color: var(--muted); font-size: 11px; }
 .order-actions { gap: 10px; margin-top: 18px; }
 .status-progress { gap: 5px; margin: 18px 0; }

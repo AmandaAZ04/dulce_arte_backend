@@ -42,8 +42,11 @@ def cuenta(request):
             logout(request); return JsonResponse({'usuario':None})
         email=str(data.get('email','')).strip().lower()
         password=data.get('password','')
+        equipo=request.sesion_equipo
         User=get_user_model()
         if modo=='registro':
+            if equipo:
+                return JsonResponse({'detail':'El equipo debe entrar con una cuenta autorizada.'},status=403)
             nombre=str(data.get('nombre','')).strip()
             if not 2<=len(nombre)<=100: raise DjangoValidationError('Escribe tu nombre (2 a 100 caracteres).')
             validate_email(email)
@@ -65,6 +68,9 @@ def cuenta(request):
             username=account.get_username() if account else email
             user=authenticate(request,username=username,password=password)
             if user is None: return JsonResponse({'detail':'Correo o contraseña incorrectos.'},status=400)
+            if equipo != user.is_staff:
+                mensaje = 'Esta cuenta no tiene permisos para entrar al equipo.' if equipo else 'Entra desde la pestaña Soy del equipo.'
+                return JsonResponse({'detail':mensaje}, status=403)
         login(request,user); cache.delete(key)
         return JsonResponse({'usuario':usuario_data(user)})
     except (DjangoValidationError,IntegrityError,ValueError,TypeError) as exc:

@@ -5,14 +5,15 @@ const D = window.D = {
   money(v){return new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(Number(v));},
   date(v){return new Intl.DateTimeFormat('es-CL',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Santiago'}).format(new Date(v));},
   error(v){if(typeof v==='string')return v;if(Array.isArray(v))return v.map(x=>D.error(x)).join('\n');return Object.entries(v||{}).map(([k,x])=>`${k==='detail'?'':k+': '}${D.error(x)}`).join('\n');},
-  async api(path,method='GET',data){
+  async api(path,method='GET',data,equipo=document.body.dataset.page==='equipo'||(document.body.dataset.page==='cuenta'&&new URLSearchParams(location.search).get('equipo')==='1')){
+    const roleHeaders=equipo?{'X-Dulce-Rol':'equipo'}:{};
     const csrf=document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=').slice(1).join('=')||document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-    const r=await fetch('/api/'+path,{method,credentials:'same-origin',headers:{'Content-Type':'application/json',...(csrf?{'X-CSRFToken':csrf}:{})},...(data!==undefined?{body:JSON.stringify(data)}:{})});
+    const r=await fetch('/api/'+path,{method,credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',...roleHeaders,...(csrf?{'X-CSRFToken':csrf}:{})},...(data!==undefined?{body:JSON.stringify(data)}:{})});
     const text=await r.text();let result;try{result=text?JSON.parse(text):null;}catch{throw Error('No se pudo completar la operación. Recarga la página e inténtalo otra vez.');}
     if(!r.ok)throw Error(D.error(result));return result;
   },
   toast(msg){const el=document.querySelector('#toast');el.textContent=msg;el.hidden=false;clearTimeout(D.timer);D.timer=setTimeout(()=>el.hidden=true,5000);},
-  modal(html){document.querySelector('#modal-body').innerHTML=html;const m=document.querySelector('#modal');if(!m.open)m.showModal();},
+  modal(html){delete document.querySelector('#modal').dataset.orderDetail;document.querySelector('#modal-body').innerHTML=html;const m=document.querySelector('#modal');if(!m.open)m.showModal();},
   close(){document.querySelector('#modal').close();},
   badge(p){const c=['LISTO','RETIRADO'].includes(p.estado)?'green':p.estado==='CANCELADO'?'gray':'pink';return `<span class="badge ${c}">${D.esc(p.etiqueta||p.estado)}</span>`;},
   progress(p){const steps=['RECIBIDO','PREPARACION','HORNEADO','CALIDAD','LISTO','RETIRADO'];const pos=steps.indexOf(p.estado);return `<div class="status-progress" aria-label="${D.esc(p.etiqueta)}">${steps.map((s,i)=>`<span class="${i<=pos?'done':''}"></span>`).join('')}</div>`;},
@@ -33,13 +34,19 @@ document.addEventListener('DOMContentLoaded',async()=>{
     if(D.user){const account=document.querySelector('#account-link');account.textContent=D.user.nombre;account.href=D.user.equipo?'/equipo/':'/mis-pedidos/';document.querySelector('#logout').hidden=false;}
     else document.querySelector('#account-link').textContent='Entrar';
     setupCart();
-    document.querySelector('#logout').onclick=async()=>{try{await D.api('cuenta/','POST',{modo:'logout'});location.href='/';}catch(e){D.toast(e.message);}};
+    document.querySelector('#logout').onclick=async()=>{try{await D.api('cuenta/','POST',{modo:'logout'});location.href=D.user?.equipo?'/cuenta/?equipo=1':'/cuenta/';}catch(e){D.toast(e.message);}};
     const page=document.body.dataset.page;
     if(page==='inicio')await initCatalog();
     if(page==='producto')await initProductPage();
     if(page==='cuenta')initAuth();
-    if(page==='pedidos')await loadOrders();
-    if(page==='seguimiento')await tracking();
+    if(page==='pedidos'){
+      await loadOrders();
+      watchOrderUpdates(()=>loadOrders(true));
+    }
+    if(page==='seguimiento'){
+      await tracking();
+      watchOrderUpdates(()=>tracking(true));
+    }
     if(page==='equipo')await window.initEquipo();
   }catch(e){D.toast(e.message);const target=document.querySelector('#products,#work-content,#my-orders,#tracking-content');if(target)target.innerHTML=`<p class="empty">${D.esc(e.message)} <button class="text-link" onclick="location.reload()">Reintentar</button></p>`;}
 });
@@ -239,9 +246,9 @@ function initAuth(){
     document.querySelector('#auth-title').textContent=registering?'Crea tu cuenta.':admin?'Bienvenida al taller.':'Qué gusto verte.';
     document.querySelector('#auth-description').textContent=admin?'Ingresa con la cuenta de administración del local.':'Inicia sesión o crea tu cuenta para encargar y seguir tus compras.';
     document.querySelector('#auth-hint').textContent=admin?'Sólo las cuentas autorizadas por el local pueden entrar al taller.':'Tu cuenta de cliente sólo muestra tus compras.';
-    document.querySelector('#email-label').textContent=admin?'Correo o nombre de usuario':'Correo electrónico';
+    document.querySelector('#email-label').textContent=admin?'Usuario o correo':'Correo electrónico';
     form.email.type=admin?'text':'email';form.email.autocomplete=admin?'username':'email';
-    form.email.placeholder=admin?'admin o tu correo':'tu@correo.cl';
+    form.email.placeholder=admin?'Usuario o correo':'tu@correo.cl';
     submit.textContent=registering?'Crear mi cuenta →':admin?'Entrar al panel del local →':'Entrar a mi cuenta →';
     form.password.autocomplete=registering?'new-password':'current-password';error.textContent='';
   }
@@ -252,32 +259,60 @@ function initAuth(){
       const data=Object.fromEntries(new FormData(form));data.modo=role==='admin'?'login':mode;
       if(data.modo==='registro'&&data.password!==data.password_confirm)throw Error('Las contraseñas no coinciden. Revísalas e inténtalo otra vez.');
       delete data.password_confirm;
-      const result=await D.api('cuenta/','POST',data);
-      if(role==='admin'&&!result.usuario.equipo){await D.api('cuenta/','POST',{modo:'logout'});throw Error('Esta cuenta no tiene permisos de administración. Usa la cuenta autorizada por el local.');}
+      await D.api('cuenta/','POST',data,role==='admin');
       location.href=role==='admin'?'/equipo/':params.has('producto')?'/producto/'+encodeURIComponent(params.get('producto'))+'/':'/';
     }catch(err){error.textContent=err.message;submit.disabled=false;}
   };
 }
-async function loadOrders(){
+function watchOrderUpdates(refresh){
+  let running=false;
+  async function update(){
+    if(running||document.hidden)return;
+    running=true;
+    try{await refresh();}catch{}finally{running=false;}
+  }
+  setInterval(update,5000);
+  document.addEventListener('visibilitychange',update);
+  window.addEventListener('focus',update);
+}
+let ordersSnapshot;
+async function loadOrders(background=false){
+  const modal=document.querySelector('#modal');
+  if(background&&modal.open&&!modal.dataset.orderDetail)return;
+
   const allOrders=await D.api('pedidos/');
   const quotesTab=new URLSearchParams(location.search).get('vista')==='cotizaciones';
   const isQuote=p=>Boolean(p.diseno||p.preferencias);
   const orders=allOrders.filter(p=>quotesTab ? isQuote(p) :
     !['COTIZACION','COTIZADO','COTIZACION_RECHAZADA'].includes(p.estado) && !(isQuote(p)&&p.estado==='CANCELADO'&&!p.pagado));
   document.querySelector(quotesTab?'#tab-quotes':'#tab-orders').setAttribute('aria-current','page');
-  const paymentResult=new URLSearchParams(location.search).get('pago');
+  const snapshot=JSON.stringify(orders);
+  if(background&&snapshot===ordersSnapshot)return;
+  ordersSnapshot=snapshot;
+  const paymentResult=background?null:new URLSearchParams(location.search).get('pago');
   if(paymentResult==='ok'){localStorage.removeItem(CART_KEY);updateCartBadge();D.toast('¡Pago aprobado! Tu pedido ya está en Mis compras.');}
   else if(paymentResult==='rechazado')D.toast('Webpay no aprobó el pago. Puedes volver al carrito e intentarlo otra vez.');
   else if(paymentResult==='cancelado')D.toast('Pago cancelado. No se realizó ningún cobro y el carrito sigue guardado.');
   else if(paymentResult==='pendiente')D.toast('Webpay no alcanzó a confirmar el pago. Revisa su estado en Mis compras.');
   else if(paymentResult==='sin-respuesta')D.toast('No recibimos respuesta de Webpay. Revisa el estado en Mis compras.');
-  document.querySelector('#my-orders').innerHTML=orders.length?orders.map(p=>`<article class="order-card"><div class="order-header"><div><span class="eyebrow">${p.codigo}</span><h3>${D.esc(p.producto)} <span class="muted">× ${p.cantidad}</span></h3></div>${p.estado==='COTIZADO'?'<span class="badge green">Aprobada · lista para pagar</span>':D.badge(p)}</div>${quotesTab?'':D.progress(p)}<div class="order-meta"><span>Retiro: ${D.date(p.retiro)}</span><span>${p.estado==='COTIZACION'?'Precio base: ':''}${D.money(p.total)}</span><span>${p.pagado?'Pagado por Webpay':p.estado==='PAGO_PENDIENTE'?'Pago pendiente':'Pago al retirar'}</span></div>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">Estamos esperando la confirmación de Webpay.</div>':''}${p.estado==='COTIZACION_RECHAZADA'?`<div class="notice"><strong>Motivo del rechazo</strong><p>${D.esc(p.nota_equipo)}</p>${p.fecha_sugerida?`<p>Retiro sugerido: ${D.date(p.fecha_sugerida)}</p>`:''}${p.alternativas?`<p><strong>Alternativas:</strong> ${D.esc(p.alternativas)}</p>`:''}<a class="text-link" href="/producto/${p.receta}/?cotizar=1${p.fecha_sugerida?'&retiro='+encodeURIComponent(chileDateTime(p.fecha_sugerida)):''}">Pedir una nueva cotización →</a></div>`:''}${p.nota_equipo&&p.estado!=='COTIZACION_RECHAZADA'?`<div class="notice"><strong>El equipo te cuenta:</strong> ${D.esc(p.nota_equipo)}</div>`:''}${p.diseno||p.preferencias?`<p class="small-text muted">Tu idea: ${D.esc([p.diseno,p.preferencias].filter(Boolean).join(' · '))}</p>`:''}<div class="order-actions">${p.estado==='COTIZADO'?`<button class="button small rose" data-accept="${p.id}">Aceptar y pagar con Webpay · ${D.money(p.total)}</button>`:''}${p.estado==='RECIBIDO'&&!p.pagado?`<button class="button small rose" data-pay-order="${p.id}">Pagar con Webpay</button>`:''}${p.estado==='PAGO_PENDIENTE'&&p.pago_id?`<button class="button small rose" data-pay-order="${p.id}">Continuar en Webpay</button><button class="button small outline" data-check-payment="${p.pago_id}">Revisar pago</button>`:''}<button class="button small outline" data-detail="${p.id}">Ver seguimiento y QR</button>${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="button small outline" href="/api/pedidos/${p.id}/comprobante/" download>Descargar boleta con QR</a>`:''}${['COTIZACION','COTIZADO','RECIBIDO'].includes(p.estado)?`<button class="text-link" data-cancel="${p.id}">Cancelar pedido</button>`:''}</div></article>`).join(''):quotesTab?'<p class="empty">Todavía no tienes cotizaciones.</p>':'<div class="empty"><h3>Aún no hay dulces por aquí.</h3><p>Tu primer pedido puede ser el comienzo de algo rico.</p><a class="button" href="/#vitrina">Explorar la vitrina →</a></div>';
-  document.querySelectorAll('[data-detail]').forEach(b=>{const p=orders.find(x=>x.id===Number(b.dataset.detail));b.onclick=()=>D.modal(`<span class="eyebrow">${p.codigo}</span><h2>${D.esc(p.producto)}</h2>${D.badge(p)}${D.timeline(p)}${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<img class="qr-large" src="/api/pedidos/${p.id}/qr/" alt="QR de retiro del pedido"><p class="small-text muted">Presenta este QR en el mesón. Es personal: no lo compartas.</p>`:'<p class="notice">El QR estará disponible cuando el pedido quede confirmado.</p>'}`);});
+  document.querySelector('#my-orders').innerHTML=orders.length?orders.map(p=>`<article class="order-card"><div class="order-header"><div><span class="eyebrow">${p.codigo}</span><h3>${D.esc(p.producto)} <span class="muted">× ${p.cantidad}</span></h3></div>${p.estado==='COTIZADO'?'<span class="badge green">Aprobada · lista para pagar</span>':D.badge(p)}</div>${quotesTab?'':D.progress(p)}${p.estado==='PREPARACION'?'<p class="preparing-note">Tu pedido ya está en preparación.</p>':''}<div class="order-meta"><span>Retiro: ${D.date(p.retiro)}</span><span>${p.estado==='COTIZACION'?'Precio base: ':''}${D.money(p.total)}</span><span>${p.pagado?'Pagado por Webpay':p.estado==='PAGO_PENDIENTE'?'Pago pendiente':'Pago por confirmar'}</span></div>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">Estamos esperando la confirmación de Webpay.</div>':''}${p.estado==='COTIZACION_RECHAZADA'?`<div class="notice"><strong>Motivo del rechazo</strong><p>${D.esc(p.nota_equipo)}</p>${p.fecha_sugerida?`<p>Retiro sugerido: ${D.date(p.fecha_sugerida)}</p>`:''}${p.alternativas?`<p><strong>Alternativas:</strong> ${D.esc(p.alternativas)}</p>`:''}<a class="text-link" href="/producto/${p.receta}/?cotizar=1${p.fecha_sugerida?'&retiro='+encodeURIComponent(chileDateTime(p.fecha_sugerida)):''}">Pedir una nueva cotización →</a></div>`:''}${p.nota_equipo&&p.estado!=='COTIZACION_RECHAZADA'?`<div class="notice"><strong>El equipo te cuenta:</strong> ${D.esc(p.nota_equipo)}</div>`:''}${p.diseno||p.preferencias?`<p class="small-text muted">Tu idea: ${D.esc([p.diseno,p.preferencias].filter(Boolean).join(' · '))}</p>`:''}<div class="order-actions">${p.estado==='COTIZADO'?`<button class="button small rose" data-accept="${p.id}">Aceptar y pagar con Webpay · ${D.money(p.total)}</button>`:''}${p.estado==='RECIBIDO'&&!p.pagado?`<button class="button small rose" data-pay-order="${p.id}">Pagar con Webpay</button>`:''}${p.estado==='PAGO_PENDIENTE'&&p.pago_id?`<button class="button small rose" data-pay-order="${p.id}">Continuar en Webpay</button><button class="button small outline" data-check-payment="${p.pago_id}">Revisar pago</button>`:''}<button class="button small outline" data-detail="${p.id}">Ver seguimiento y QR</button>${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="button small outline" href="/api/pedidos/${p.id}/comprobante/" download>Descargar boleta con QR</a>`:''}${['COTIZACION','COTIZADO','RECIBIDO'].includes(p.estado)?`<button class="text-link" data-cancel="${p.id}">Cancelar pedido</button>`:''}</div></article>`).join(''):quotesTab?'<p class="empty">Todavía no tienes cotizaciones.</p>':'<div class="empty"><h3>Aún no hay dulces por aquí.</h3><p>Tu primer pedido puede ser el comienzo de algo rico.</p><a class="button" href="/#vitrina">Explorar la vitrina →</a></div>';
+  function showDetail(p){
+    D.modal(`<span class="eyebrow">${p.codigo}</span><h2>${D.esc(p.producto)}</h2>${D.badge(p)}${D.timeline(p)}${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<img class="qr-large" src="/api/pedidos/${p.id}/qr/" alt="QR de retiro del pedido"><p class="small-text muted">Presenta este QR en el mesón. Es personal: no lo compartas.</p>`:'<p class="notice">El QR estará disponible cuando el pedido quede confirmado.</p>'}`);
+    modal.dataset.orderDetail=p.id;
+  }
+  document.querySelectorAll('[data-detail]').forEach(button=>{
+    button.onclick=()=>showDetail(orders.find(p=>p.id===Number(button.dataset.detail)));
+  });
+  if(modal.open&&modal.dataset.orderDetail){
+    const current=orders.find(p=>p.id===Number(modal.dataset.orderDetail));
+    if(current)showDetail(current);
+    else D.close();
+  }
   document.querySelectorAll('[data-check-payment]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const result=await D.api(`pagos/${b.dataset.checkPayment}/verificar/`,'POST',{});if(result.pagado){localStorage.removeItem(CART_KEY);D.toast('¡Pago aprobado! El pedido ya está confirmado.');}else D.toast(result.estado==='INICIADO'?'Webpay todavía espera la respuesta. Completa o cancela el pago en esa ventana.':'El pago no se aprobó. Vuelve a agregar el producto al carrito.');await loadOrders();}catch(e){D.toast(e.message);b.disabled=false;}});
   document.querySelectorAll('[data-pay-order]').forEach(b=>b.onclick=()=>pagarPedido(Number(b.dataset.payOrder),b));
   document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const payment=await D.api(`pagos/pedido/${b.dataset.accept}/iniciar/`,'POST',{});redirectToWebpay(payment);}catch(e){D.toast(e.message);b.disabled=false;}});
   document.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>{D.modal('<h2>¿Cancelar este pedido?</h2><p>Se liberarán los ingredientes reservados. Esta acción no puede deshacerse.</p><button class="button danger" id="confirm-cancel">Sí, cancelar pedido</button>');document.querySelector('#confirm-cancel').onclick=async e=>{e.target.disabled=true;try{await D.api(`pedidos/${b.dataset.cancel}/estado/`,'POST',{estado:'CANCELADO'});D.close();await loadOrders();}catch(err){D.toast(err.message);e.target.disabled=false;}};});
 }
-async function tracking(){
-  try{const p=await D.api('seguimiento/'+document.querySelector('.tracking').dataset.token+'/');document.querySelector('#tracking-content').innerHTML=`<span class="eyebrow">${p.codigo}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}${D.progress(p)}<p>Retiro: ${D.date(p.retiro)}</p>${D.timeline(p)}${p.estado==='LISTO'?'<div class="notice">¡Ya está listo! Te esperamos en el mesón.</div>':''}`;}catch(e){document.querySelector('#tracking-content').innerHTML='<p>No encontramos este pedido. Inicia sesión y revísalo en Mis compras.</p>';}
+async function tracking(background=false){
+  try{const p=await D.api('seguimiento/'+document.querySelector('.tracking').dataset.token+'/');document.querySelector('#tracking-content').innerHTML=`<span class="eyebrow">${p.codigo}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}${D.progress(p)}<p>Retiro: ${D.date(p.retiro)}</p>${D.timeline(p)}${p.estado==='LISTO'?'<div class="notice">¡Ya está listo! Te esperamos en el mesón.</div>':''}`;}catch(e){if(background)return;document.querySelector('#tracking-content').innerHTML='<p>No encontramos este pedido. Inicia sesión y revísalo en Mis compras.</p>';}
 }

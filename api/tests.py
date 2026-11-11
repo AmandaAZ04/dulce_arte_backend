@@ -120,7 +120,8 @@ class NegocioTests(TestCase):
         self.assertEqual(self.api.post('/api/pedidos/',data,format='json').status_code,400)
 
     def test_taller_carga_sus_herramientas(self):
-        self.client.force_login(self.staff)
+        self.client.post('/api/cuenta/', {'email':self.staff.email,'password':PASSWORD},
+                         content_type='application/json', headers={'X-Dulce-Rol':'equipo'})
         response=self.client.get('/equipo/')
         self.assertContains(response,'/static/dulce/equipo.js')
         self.assertNotContains(response,'href="/admin/"')
@@ -212,9 +213,27 @@ class NegocioTests(TestCase):
         self.assertFalse(get_user_model().objects.get(username='nueva@example.com').is_staff)
     def test_equipo_protegido_y_logout(self):
         self.client.force_login(self.client_user)
-        self.assertEqual(self.client.get('/equipo/').status_code,403)
+        self.assertRedirects(self.client.get('/equipo/'),'/cuenta/?equipo=1')
         self.client.post('/api/cuenta/',data={'modo':'logout'},content_type='application/json')
         self.assertEqual(self.client.get('/mis-pedidos/').status_code,302)
+
+    def test_cliente_y_equipo_tienen_sesiones_independientes(self):
+        def login_as(user, **headers):
+            return self.client.post('/api/cuenta/', {'email':user.email,'password':PASSWORD},
+                                    content_type='application/json', headers=headers)
+        equipo = {'X-Dulce-Rol':'equipo'}
+        self.assertEqual(login_as(self.client_user).status_code,200)
+        self.assertEqual(login_as(self.client_user, **equipo).status_code,403)
+        self.assertEqual(login_as(self.staff, **equipo).status_code,200)
+        self.assertEqual(self.client.get('/api/cuenta/').json()['usuario']['id'],self.client_user.id)
+        self.assertEqual(self.client.get('/api/cuenta/',headers=equipo).json()['usuario']['id'],self.staff.id)
+        pedido = self.order()
+        self.assertEqual(self.client.post(f'/api/pedidos/{pedido.id}/estado/', {'estado':'PREPARACION'},
+                                          content_type='application/json', headers=equipo).status_code,200)
+        self.assertEqual(self.client.get(f'/api/pedidos/{pedido.id}/').json()['estado'],'PREPARACION')
+        self.client.post('/api/cuenta/', {'modo':'logout'}, content_type='application/json', headers=equipo)
+        self.assertIsNone(self.client.get('/api/cuenta/',headers=equipo).json()['usuario'])
+        self.assertEqual(self.client.get('/api/cuenta/').json()['usuario']['id'],self.client_user.id)
 
 class ConcurrenciaTests(TransactionTestCase):
     def setUp(self): setup_data(self)

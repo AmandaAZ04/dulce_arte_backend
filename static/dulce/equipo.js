@@ -36,12 +36,48 @@ function drawTeamOrders(){
   document.querySelector('#order-filter').onchange=table;table();
 }
 function bindOrderButtons(){document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>orderDetail(Number(b.dataset.open)));}
-function bomRows(items){return items.map(m=>`<div class="bom-row"><select class="bom-insumo" aria-label="Ingrediente" required>${W.stock.map(i=>`<option value="${i.id}" ${i.id===Number(m.insumo)?'selected':''}>${D.esc(i.nombre)} (${D.esc(i.unidad)})</option>`).join('')}</select><input aria-label="Cantidad de ingrediente" class="bom-cantidad" type="number" min="0.01" step="0.01" required value="${Number(m.cantidad)||1}"><button type="button" class="remove-bom" aria-label="Quitar ingrediente">×</button></div>`).join('');}
-function bindBom(){document.querySelectorAll('.remove-bom').forEach(b=>b.onclick=()=>b.closest('.bom-row').remove());document.querySelector('#add-bom').onclick=()=>{document.querySelector('#bom-rows').insertAdjacentHTML('beforeend',bomRows([{insumo:W.stock[0]?.id,cantidad:1}]));bindBom();};}
+function bomRows(items){
+  return items.map(m=>`<div class="bom-row">
+    <select class="bom-insumo" aria-label="Ingrediente" required>${W.stock.map(i=>`<option value="${i.id}" ${i.id===Number(m.insumo)?'selected':''}>${D.esc(i.nombre)}</option>`).join('')}</select>
+    <input aria-label="Cantidad de ingrediente" class="bom-cantidad" type="number" min="0.01" step="0.01" required value="${Number(m.cantidad)||1}">
+    <button type="button" class="remove-bom" aria-label="Quitar ingrediente">×</button>
+    <small class="bom-availability" aria-live="polite"></small>
+  </div>`).join('');
+}
+function bindBom(){
+  const rows=document.querySelector('#bom-rows');
+  const stock=new Map(W.stock.map(item=>[String(item.id),item]));
+  function updateRow(row){
+    const select=row.querySelector('select');
+    const quantity=Number(row.querySelector('input').value);
+    for(const option of select.options){
+      const item=stock.get(option.value);
+      const available=Number(item.disponible);
+      const shortage=available<=0||available<quantity;
+      option.classList.toggle('stock-short',shortage);
+      option.textContent=`${item.nombre} · ${available} ${item.unidad} disponibles${shortage?' · No alcanza':''}`;
+    }
+    const item=stock.get(select.value);
+    if(!item)return;
+    const available=Number(item.disponible);
+    const shortage=available<=0||available<quantity;
+    row.classList.toggle('stock-short',shortage);
+    row.querySelector('.bom-availability').textContent=
+      `${available}/${quantity} ${item.unidad} disponibles${shortage?' · Faltan '+Number((quantity-available).toFixed(2))+' '+item.unidad:''}`;
+  }
+  rows.oninput=event=>updateRow(event.target.closest('.bom-row'));
+  rows.onchange=rows.oninput;
+  rows.onclick=event=>event.target.closest('.remove-bom')?.closest('.bom-row').remove();
+  document.querySelector('#add-bom').onclick=()=>{
+    rows.insertAdjacentHTML('beforeend',bomRows([{insumo:W.stock[0]?.id,cantidad:1}]));
+    updateRow(rows.lastElementChild);
+  };
+  rows.querySelectorAll('.bom-row').forEach(updateRow);
+}
 function readBom(){return [...document.querySelectorAll('.bom-row')].map(row=>({insumo:Number(row.querySelector('select').value),cantidad:row.querySelector('input').value}));}
 function orderDetail(id){
   const p=W.orders.find(x=>x.id===id),quote=['COTIZACION','COTIZADO'].includes(p.estado);
-  D.modal(`<span class="eyebrow">${p.codigo} · ${D.esc(p.cliente_nombre)}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}<p class="small-text muted" style="margin-top:15px">${D.esc(p.cliente_email)} · ${D.esc(p.telefono)}<br>Retiro: ${D.date(p.retiro)}${p.pagado?'<br>Pago confirmado por Webpay':''}</p><div class="notice"><strong>La idea del cliente</strong><br>${D.esc(p.diseno||'Diseño de la casa')}<br>${D.esc(p.preferencias||'Ingredientes de la receta original')}</div>${quote?`<form id="quote-form"><label>Total de la cotización (CLP)<input name="total" type="number" min="1" step="1" value="${Number(p.total)}" required></label><label>Respuesta para el cliente<textarea name="nota" maxlength="1500" placeholder="Describe el diseño y los ingredientes que acordamos…">${D.esc(p.nota_equipo)}</textarea></label><p class="small-text"><strong>Ingredientes totales para este pedido</strong><br>Incluye las ${p.cantidad} unidades. Estas cantidades se reservarán cuando el cliente acepte.</p><div id="bom-rows">${bomRows(p.materiales)}</div><button type="button" class="text-link" id="add-bom">+ Agregar ingrediente</button><p class="form-error" id="quote-error"></p><button class="button full" type="submit" style="margin-top:20px">Aprobar y enviar precio →</button><button class="button outline full" type="button" id="reject-quote">Rechazar cotización</button></form>`:`<p class="small-text">${D.esc(p.nota_equipo)}</p>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">No iniciar la preparación hasta que Webpay confirme este pago.</div>':''}<h3>Ingredientes del pedido</h3><ul class="ingredients">${p.materiales.map(m=>`<li>${D.esc(m.nombre)}<strong>${Number(m.cantidad)} ${D.esc(m.unidad)}</strong></li>`).join('')}</ul>${D.timeline(p)}${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="text-link" href="/api/pedidos/${p.id}/comprobante/">Descargar boleta con QR</a>`:''}`}${!['PAGO_PENDIENTE','RETIRADO','COTIZACION_RECHAZADA','CANCELADO'].includes(p.estado)?`<button class="button small danger" id="cancel-team" style="margin-top:20px">Cancelar pedido</button>`:''}`);
+  D.modal(`<span class="eyebrow">${p.codigo} · ${D.esc(p.cliente_nombre)}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}<p class="small-text muted" style="margin-top:15px">${D.esc(p.cliente_email)} · ${D.esc(p.telefono)}<br>Retiro: ${D.date(p.retiro)}${p.pagado?'<br>Pago confirmado por Webpay':''}</p><div class="notice"><strong>La idea del cliente</strong><br>${D.esc(p.diseno||'Diseño de la casa')}<br>${D.esc(p.preferencias||'Ingredientes de la receta original')}</div>${quote?`<form id="quote-form"><label>Total de la cotización (CLP)<input name="total" type="number" min="1" step="1" value="${Number(p.total)}" required></label><label>Respuesta para el cliente<textarea name="nota" maxlength="1500" placeholder="Describe el diseño y los ingredientes que acordamos…">${D.esc(p.nota_equipo)}</textarea></label><p class="small-text"><strong>Ingredientes totales para este pedido</strong><br>Incluye las ${p.cantidad} unidades. Estas cantidades se reservarán cuando el cliente acepte.</p><div id="bom-rows">${bomRows(p.materiales)}</div><button type="button" class="text-link" id="add-bom">+ Agregar ingrediente</button><p class="form-error" id="quote-error"></p><button class="button full" type="submit" style="margin-top:20px">Aprobar y enviar precio →</button><button class="button outline full" type="button" id="reject-quote">Rechazar cotización</button></form>`:`<p class="small-text">${D.esc(p.nota_equipo)}</p>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">No iniciar la preparación hasta que Webpay confirme este pago.</div>':''}<h3>Ingredientes del pedido</h3><ul class="ingredients">${p.materiales.map(m=>`<li>${D.esc(m.nombre)}<strong>${Number(m.cantidad)} ${D.esc(m.unidad)}</strong></li>`).join('')}</ul>${D.timeline(p)}${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="text-link" href="/api/pedidos/${p.id}/comprobante/?equipo=1">Descargar boleta con QR</a>`:''}`}${!['PAGO_PENDIENTE','RETIRADO','COTIZACION_RECHAZADA','CANCELADO'].includes(p.estado)?`<button class="button small danger" id="cancel-team" style="margin-top:20px">Cancelar pedido</button>`:''}`);
   if(quote){bindBom();document.querySelector('#quote-form').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button[type=submit]');b.disabled=true;try{const f=Object.fromEntries(new FormData(e.target));await D.api(`pedidos/${id}/cotizar/`,'POST',{total:f.total,nota:f.nota,materiales:readBom()});D.close();await refreshWork();D.toast('Cotización lista para que el cliente la acepte.');}catch(err){document.querySelector('#quote-error').textContent=err.message;b.disabled=false;}};}
   const reject=document.querySelector('#reject-quote');
   if(reject) reject.onclick=()=>{
