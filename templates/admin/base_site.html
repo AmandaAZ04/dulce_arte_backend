@@ -1,0 +1,4 @@
+{% extends "admin/base.html" %}{% load static %}
+{% block title %}{{ title }} · Dulce Arte{% endblock %}
+{% block branding %}<h1><a href="/equipo/">Dulce Arte · El taller</a></h1>{% endblock %}
+{% block extrastyle %}{{ block.super }}<style>:root{--primary:#8b5751;--secondary:#604239;--accent:#ffe5ca;--header-bg:#604239;--link-fg:#8b5751}#header{padding:22px 35px}#branding h1{font-family:Georgia,serif;font-size:26px}.module h2,.module caption{border-radius:7px 7px 0 0}</style>{% endblock %}
