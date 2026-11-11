@@ -44,6 +44,7 @@ class Pedido(models.Model):
     class Estado(models.TextChoices):
         COTIZACION='COTIZACION','Por cotizar'
         COTIZADO='COTIZADO','Cotización lista'
+        COTIZACION_RECHAZADA='COTIZACION_RECHAZADA','Cotización rechazada'
         PAGO_PENDIENTE='PAGO_PENDIENTE','Pago pendiente en Webpay'
         RECIBIDO='RECIBIDO','Recibido'
         PREPARACION='PREPARACION','En preparación'
@@ -62,6 +63,8 @@ class Pedido(models.Model):
     diseno = models.TextField(blank=True)
     preferencias = models.TextField(blank=True, help_text='Solicitudes de ingredientes a revisar por el equipo.')
     nota_equipo = models.TextField(blank=True)
+    fecha_sugerida = models.DateTimeField(null=True, blank=True)
+    alternativas = models.TextField(blank=True)
     estado = models.CharField(max_length=20,choices=Estado.choices,default=Estado.COTIZACION)
     pagado = models.BooleanField(default=False)
     consumido = models.BooleanField(default=False)

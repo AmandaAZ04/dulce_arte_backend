@@ -31,18 +31,80 @@ function drawKitchen(){
   document.querySelectorAll('[data-pickup]').forEach(b=>b.onclick=()=>{changeView('retiros');document.querySelector('#pickup-code').value=b.dataset.pickup;lookupPickup();});
 }
 function drawTeamOrders(){
-  container(`<div class="work-toolbar"><p class="muted small-text no-margin">Solicitudes, confirmaciones y la historia de cada pedido.</p><select id="order-filter" aria-label="Filtrar pedidos"><option value="">Todos los pedidos</option><option value="COTIZACION">Por cotizar</option><option value="COTIZADO">Esperando aprobación</option><option value="PAGO_PENDIENTE">Pago pendiente en Webpay</option>${stages.map(s=>`<option value="${s[0]}">${s[1]}</option>`).join('')}<option>RETIRADO</option><option>CANCELADO</option></select></div><div id="orders-table"></div>`);
+  container(`<div class="work-toolbar"><p class="muted small-text no-margin">Solicitudes, confirmaciones y la historia de cada pedido.</p><select id="order-filter" aria-label="Filtrar pedidos"><option value="">Todos los pedidos</option><option value="COTIZACION">Por cotizar</option><option value="COTIZADO">Aprobada, pendiente de pago</option><option value="COTIZACION_RECHAZADA">Cotización rechazada</option><option value="PAGO_PENDIENTE">Pago pendiente en Webpay</option>${stages.map(s=>`<option value="${s[0]}">${s[1]}</option>`).join('')}<option>RETIRADO</option><option>CANCELADO</option></select></div><div id="orders-table"></div>`);
   function table(){const state=document.querySelector('#order-filter').value;const rows=W.orders.filter(p=>!state||p.estado===state);document.querySelector('#orders-table').innerHTML=rows.length?`<div class="order-table-wrap"><table><thead><tr><th>Pedido / cliente</th><th>Producto</th><th>Retiro</th><th>Estado</th><th>Total</th><th></th></tr></thead><tbody>${rows.map(p=>`<tr><td><strong>${p.codigo}</strong><small>${D.esc(p.cliente_nombre)}</small></td><td>${D.esc(p.producto)} × ${p.cantidad}</td><td>${D.date(p.retiro)}</td><td>${D.badge(p)}</td><td>${D.money(p.total)}</td><td><button class="button small outline" data-open="${p.id}">${['COTIZACION','COTIZADO'].includes(p.estado)?'Revisar cotización':'Ver detalle'}</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">No hay pedidos en este estado.</p>';bindOrderButtons();}
   document.querySelector('#order-filter').onchange=table;table();
 }
 function bindOrderButtons(){document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>orderDetail(Number(b.dataset.open)));}
-function bomRows(items){return items.map(m=>`<div class="bom-row"><select class="bom-insumo" aria-label="Ingrediente" required>${W.stock.map(i=>`<option value="${i.id}" ${i.id===Number(m.insumo)?'selected':''}>${D.esc(i.nombre)} (${D.esc(i.unidad)})</option>`).join('')}</select><input aria-label="Cantidad de ingrediente" class="bom-cantidad" type="number" min="0.01" step="0.01" required value="${Number(m.cantidad)||1}"><button type="button" class="remove-bom" aria-label="Quitar ingrediente">×</button></div>`).join('');}
-function bindBom(){document.querySelectorAll('.remove-bom').forEach(b=>b.onclick=()=>b.closest('.bom-row').remove());document.querySelector('#add-bom').onclick=()=>{document.querySelector('#bom-rows').insertAdjacentHTML('beforeend',bomRows([{insumo:W.stock[0]?.id,cantidad:1}]));bindBom();};}
+function bomRows(items){
+  return items.map(m=>`<div class="bom-row">
+    <select class="bom-insumo" aria-label="Ingrediente" required>${W.stock.map(i=>`<option value="${i.id}" ${i.id===Number(m.insumo)?'selected':''}>${D.esc(i.nombre)}</option>`).join('')}</select>
+    <input aria-label="Cantidad de ingrediente" class="bom-cantidad" type="number" min="0.01" step="0.01" required value="${Number(m.cantidad)||1}">
+    <button type="button" class="remove-bom" aria-label="Quitar ingrediente">×</button>
+    <small class="bom-availability" aria-live="polite"></small>
+  </div>`).join('');
+}
+function bindBom(){
+  const rows=document.querySelector('#bom-rows');
+  const stock=new Map(W.stock.map(item=>[String(item.id),item]));
+  function updateRow(row){
+    const select=row.querySelector('select');
+    const quantity=Number(row.querySelector('input').value);
+    for(const option of select.options){
+      const item=stock.get(option.value);
+      const available=Number(item.disponible);
+      const shortage=available<=0||available<quantity;
+      option.classList.toggle('stock-short',shortage);
+      option.textContent=`${item.nombre} · ${available} ${item.unidad} disponibles${shortage?' · No alcanza':''}`;
+    }
+    const item=stock.get(select.value);
+    if(!item)return;
+    const available=Number(item.disponible);
+    const shortage=available<=0||available<quantity;
+    row.classList.toggle('stock-short',shortage);
+    row.querySelector('.bom-availability').textContent=
+      `${available}/${quantity} ${item.unidad} disponibles${shortage?' · Faltan '+Number((quantity-available).toFixed(2))+' '+item.unidad:''}`;
+  }
+  rows.oninput=event=>updateRow(event.target.closest('.bom-row'));
+  rows.onchange=rows.oninput;
+  rows.onclick=event=>event.target.closest('.remove-bom')?.closest('.bom-row').remove();
+  document.querySelector('#add-bom').onclick=()=>{
+    rows.insertAdjacentHTML('beforeend',bomRows([{insumo:W.stock[0]?.id,cantidad:1}]));
+    updateRow(rows.lastElementChild);
+  };
+  rows.querySelectorAll('.bom-row').forEach(updateRow);
+}
 function readBom(){return [...document.querySelectorAll('.bom-row')].map(row=>({insumo:Number(row.querySelector('select').value),cantidad:row.querySelector('input').value}));}
 function orderDetail(id){
   const p=W.orders.find(x=>x.id===id),quote=['COTIZACION','COTIZADO'].includes(p.estado);
-  D.modal(`<span class="eyebrow">${p.codigo} · ${D.esc(p.cliente_nombre)}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}<p class="small-text muted" style="margin-top:15px">${D.esc(p.cliente_email)} · ${D.esc(p.telefono)}<br>Retiro: ${D.date(p.retiro)}${p.pagado?'<br>Pago confirmado por Webpay':''}</p><div class="notice"><strong>La idea del cliente</strong><br>${D.esc(p.diseno||'Diseño de la casa')}<br>${D.esc(p.preferencias||'Ingredientes de la receta original')}</div>${quote?`<form id="quote-form"><label>Total de la cotización (CLP)<input name="total" type="number" min="1" step="1" value="${Number(p.total)}" required></label><label>Respuesta para el cliente<textarea name="nota" maxlength="1500" placeholder="Describe el diseño y los ingredientes que acordamos…">${D.esc(p.nota_equipo)}</textarea></label><p class="small-text"><strong>Ingredientes totales para este pedido</strong><br>Incluye las ${p.cantidad} unidades. Estas cantidades se reservarán cuando el cliente acepte.</p><div id="bom-rows">${bomRows(p.materiales)}</div><button type="button" class="text-link" id="add-bom">+ Agregar ingrediente</button><p class="form-error" id="quote-error"></p><button class="button full" style="margin-top:20px">Guardar cotización para el cliente →</button></form>`:`<p class="small-text">${D.esc(p.nota_equipo)}</p>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">No iniciar la preparación hasta que Webpay confirme este pago.</div>':''}<h3>Ingredientes del pedido</h3><ul class="ingredients">${p.materiales.map(m=>`<li>${D.esc(m.nombre)}<strong>${Number(m.cantidad)} ${D.esc(m.unidad)}</strong></li>`).join('')}</ul>${D.timeline(p)}${!['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="text-link" href="/api/pedidos/${p.id}/comprobante/">Descargar boleta con QR</a>`:''}`}${!['PAGO_PENDIENTE','RETIRADO','CANCELADO'].includes(p.estado)?`<button class="button small danger" id="cancel-team" style="margin-top:20px">Cancelar pedido</button>`:''}`);
-  if(quote){bindBom();document.querySelector('#quote-form').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button[type!=button],button:not([type])');b.disabled=true;try{const f=Object.fromEntries(new FormData(e.target));await D.api(`pedidos/${id}/cotizar/`,'POST',{total:f.total,nota:f.nota,materiales:readBom()});D.close();await refreshWork();D.toast('Cotización lista para que el cliente la acepte.');}catch(err){document.querySelector('#quote-error').textContent=err.message;b.disabled=false;}};}
+  D.modal(`<span class="eyebrow">${p.codigo} · ${D.esc(p.cliente_nombre)}</span><h2>${D.esc(p.producto)} × ${p.cantidad}</h2>${D.badge(p)}<p class="small-text muted" style="margin-top:15px">${D.esc(p.cliente_email)} · ${D.esc(p.telefono)}<br>Retiro: ${D.date(p.retiro)}${p.pagado?'<br>Pago confirmado por Webpay':''}</p><div class="notice"><strong>La idea del cliente</strong><br>${D.esc(p.diseno||'Diseño de la casa')}<br>${D.esc(p.preferencias||'Ingredientes de la receta original')}</div>${quote?`<form id="quote-form"><label>Total de la cotización (CLP)<input name="total" type="number" min="1" step="1" value="${Number(p.total)}" required></label><label>Respuesta para el cliente<textarea name="nota" maxlength="1500" placeholder="Describe el diseño y los ingredientes que acordamos…">${D.esc(p.nota_equipo)}</textarea></label><p class="small-text"><strong>Ingredientes totales para este pedido</strong><br>Incluye las ${p.cantidad} unidades. Estas cantidades se reservarán cuando el cliente acepte.</p><div id="bom-rows">${bomRows(p.materiales)}</div><button type="button" class="text-link" id="add-bom">+ Agregar ingrediente</button><p class="form-error" id="quote-error"></p><button class="button full" type="submit" style="margin-top:20px">Aprobar y enviar precio →</button><button class="button outline full" type="button" id="reject-quote">Rechazar cotización</button></form>`:`<p class="small-text">${D.esc(p.nota_equipo)}</p>${p.estado==='PAGO_PENDIENTE'?'<div class="notice">No iniciar la preparación hasta que Webpay confirme este pago.</div>':''}<h3>Ingredientes del pedido</h3><ul class="ingredients">${p.materiales.map(m=>`<li>${D.esc(m.nombre)}<strong>${Number(m.cantidad)} ${D.esc(m.unidad)}</strong></li>`).join('')}</ul>${D.timeline(p)}${!['COTIZACION','COTIZADO','COTIZACION_RECHAZADA','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<a class="text-link" href="/api/pedidos/${p.id}/comprobante/?equipo=1">Descargar boleta con QR</a>`:''}`}${!['PAGO_PENDIENTE','RETIRADO','COTIZACION_RECHAZADA','CANCELADO'].includes(p.estado)?`<button class="button small danger" id="cancel-team" style="margin-top:20px">Cancelar pedido</button>`:''}`);
+  if(quote){bindBom();document.querySelector('#quote-form').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button[type=submit]');b.disabled=true;try{const f=Object.fromEntries(new FormData(e.target));await D.api(`pedidos/${id}/cotizar/`,'POST',{total:f.total,nota:f.nota,materiales:readBom()});D.close();await refreshWork();D.toast('Cotización lista para que el cliente la acepte.');}catch(err){document.querySelector('#quote-error').textContent=err.message;b.disabled=false;}};}
+  const reject=document.querySelector('#reject-quote');
+  if(reject) reject.onclick=()=>{
+    D.modal(`<h2>Responder a ${D.esc(p.codigo)}</h2><form id="reject-form">
+      <label>Motivo del rechazo<textarea name="motivo" maxlength="1500" required></textarea></label>
+      <label>Fecha y hora de retiro sugeridas (opcional)<input name="fecha_sugerida" type="datetime-local"></label>
+      <label>Alternativas (opcional)<textarea name="alternativas" maxlength="1500" placeholder="Ej.: la misma torta de 10 porciones en vez de 20"></textarea></label>
+      <p class="form-error" role="alert"></p>
+      <button class="button full" type="submit">Enviar respuesta</button>
+    </form>`);
+    document.querySelector('#reject-form').onsubmit=async event=>{
+      event.preventDefault();
+      const form=event.currentTarget, button=form.querySelector('button'), error=form.querySelector('[role="alert"]');
+      button.disabled=true;
+      try{
+        const data=Object.fromEntries(new FormData(form));
+        if(!data.fecha_sugerida) delete data.fecha_sugerida;
+        await D.api(`pedidos/${id}/rechazar-cotizacion/`,'POST',data);
+        D.close();
+        await refreshWork();
+        D.toast('Respuesta enviada a Cotizaciones.');
+      }catch(err){
+        error.textContent=err.message;
+        button.disabled=false;
+      }
+    };
+  };
   const cancel=document.querySelector('#cancel-team');if(cancel)cancel.onclick=()=>{D.modal(`<h2>¿Cancelar ${p.codigo}?</h2><p>Los ingredientes ya utilizados en cocina no se devolverán al inventario. Las reservas sin consumir se liberarán.</p><button class="button danger" id="cancel-final">Confirmar cancelación</button>`);document.querySelector('#cancel-final').onclick=async e=>{e.target.disabled=true;try{await D.api(`pedidos/${id}/estado/`,'POST',{estado:'CANCELADO'});D.close();await refreshWork();}catch(err){D.toast(err.message);e.target.disabled=false;}};};
 }
 function drawRecipes(){
@@ -56,14 +118,20 @@ function editRecipe(id){
   D.modal(`<span class="eyebrow">SECRETOS DE NUESTRA COCINA</span><h2>${id?'Editar receta':'Una nueva delicia'}</h2><form id="recipe-form"><label>Nombre<input name="nombre" value="${D.esc(r.nombre)}" required maxlength="120"></label><label>Descripción para la vitrina<textarea name="descripcion" required>${D.esc(r.descripcion)}</textarea></label><div class="field-row"><label>Categoría<select name="categoria">${['Tortas','Tartas','Dulces','Galletas'].map(c=>`<option ${c===r.categoria?'selected':''}>${c}</option>`).join('')}</select></label><label>Precio (CLP)<input name="precio" type="number" min="1" step="1" value="${r.precio}" required></label></div><div class="field-row"><label>Porciones<input name="porciones" type="number" min="1" value="${r.porciones}" required></label><label>Preparación (minutos)<input name="minutos" type="number" min="1" value="${r.minutos}" required></label></div><label>Ilustración<select name="imagen">${['torta-frutilla.svg','torta-chocolate.svg','cheesecake.svg','limon.svg','cookies.svg','rolls.svg'].map(f=>`<option ${r.imagen===f?'selected':''}>${f}</option>`).join('')}</select></label><label>Alérgenos<input name="alergenos" maxlength="250" value="${D.esc(r.alergenos)}"></label><h3>Ingredientes por unidad de venta</h3><div id="bom-rows">${bomRows(r.ingredientes)}</div><button type="button" class="text-link" id="add-bom">+ Agregar ingrediente</button><label style="margin-top:20px">Paso a paso (un paso por línea)<textarea name="pasos" required rows="6">${D.esc(r.pasos)}</textarea></label><label><input type="checkbox" name="activa" ${r.activa?'checked':''}> Mostrar en la vitrina</label><p id="recipe-error" class="form-error"></p><button class="button full">Guardar receta →</button></form>`);
   bindBom();document.querySelector('#recipe-form').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button:not([type])');b.disabled=true;try{const data=Object.fromEntries(new FormData(e.target));data.activa=e.target.activa.checked;data.bom=readBom();await D.api('recetas/'+(id?id+'/':''),id?'PATCH':'POST',data);D.close();await refreshWork();D.toast('Receta guardada.');}catch(err){document.querySelector('#recipe-error').textContent=err.message;b.disabled=false;}};
 }
+function stockLevel(item){
+  const available=Math.round(Number(item.disponible)*100);
+  const minimum=Math.round(Number(item.minimo)*100);
+  if(available<=0)return 'empty';
+  return available*4<=minimum*5?'low':'normal';
+}
 function drawStock(){
-  const low=W.stock.filter(i=>Number(i.disponible)<=Number(i.minimo)).length;
+  const low=W.stock.filter(i=>stockLevel(i)!=='normal').length;
   const reserved=W.stock.filter(i=>Number(i.reservado)>0).length;
   container(`<div class="stats inventory-stats">
     <div class="stat"><small>Ingredientes</small><strong>${W.stock.length}</strong></div>
     <div class="stat"><small>Por reponer</small><strong>${low}</strong></div>
     <div class="stat"><small>Con reservas</small><strong>${reserved}</strong></div>
-  </div><div class="work-toolbar"><label class="stock-search">Buscar ingrediente<input id="stock-search" type="search" placeholder="Ej.: chocolate"></label><label class="stock-filter"><input id="stock-low" type="checkbox"> Solo por reponer</label><button class="button small" id="new-stock">+ Nuevo insumo</button></div><div class="order-table-wrap"><table><thead><tr><th>Ingrediente</th><th>En bodega</th><th>Reservado</th><th>Disponible</th><th>Mínimo</th><th></th></tr></thead><tbody>${W.stock.map(i=>`<tr data-stock-id="${i.id}"><td><strong>${D.esc(i.nombre)}</strong><small>${D.esc(i.unidad)}</small></td><td>${Number(i.stock)}</td><td>${Number(i.reservado)}</td><td class="${Number(i.disponible)<=Number(i.minimo)?'low-stock':''}">${Number(i.disponible)} ${D.esc(i.unidad)}</td><td>${Number(i.minimo)}</td><td><button class="button small outline" data-adjust="${i.id}">Ajustar stock</button> <button class="text-link" data-edit-stock="${i.id}">Editar</button></td></tr>`).join('')}<tr id="stock-empty" hidden><td colspan="6">No hay ingredientes que coincidan.</td></tr></tbody></table></div><div class="section-row"><h2>El movimiento de la despensa</h2><span class="small-text muted">Últimos 100 registros</span></div><div class="order-table-wrap"><table><thead><tr><th>Fecha</th><th>Ingrediente</th><th>Cantidad</th><th>Motivo</th></tr></thead><tbody>${W.movements.map(m=>`<tr><td>${D.date(m.creado)}</td><td>${D.esc(m.nombre)}</td><td class="${Number(m.cantidad)<0?'low-stock':''}">${Number(m.cantidad)>0?'+':''}${Number(m.cantidad)} ${D.esc(m.unidad)}</td><td>${D.esc(m.motivo)}</td></tr>`).join('')||'<tr><td colspan="4">Aún no hay movimientos.</td></tr>'}</tbody></table></div>`);
+  </div><div class="work-toolbar"><label class="stock-search">Buscar ingrediente<input id="stock-search" type="search" placeholder="Ej.: chocolate"></label><label class="stock-filter"><input id="stock-low" type="checkbox"> Solo por reponer</label><button class="button small" id="new-stock">+ Nuevo insumo</button></div><div class="order-table-wrap"><table><thead><tr><th>Ingrediente</th><th>En bodega</th><th>Reservado</th><th>Disponible</th><th>Mínimo</th><th></th></tr></thead><tbody>${W.stock.map(i=>{const level=stockLevel(i);return `<tr data-stock-id="${i.id}" data-stock-level="${level}"><td><strong>${D.esc(i.nombre)}</strong><small>${D.esc(i.unidad)}</small></td><td>${Number(i.stock)}</td><td>${Number(i.reservado)}</td><td class="stock-available">${Number(i.disponible)} ${D.esc(i.unidad)}</td><td>${Number(i.minimo)}</td><td><div class="stock-actions"><button class="button small outline" data-adjust="${i.id}">Ajustar stock</button> <button class="text-link" data-edit-stock="${i.id}">Editar</button></div></td></tr>`;}).join('')}<tr id="stock-empty" hidden><td colspan="6">No hay ingredientes que coincidan.</td></tr></tbody></table></div><div class="section-row"><h2>El movimiento de la despensa</h2><span class="small-text muted">Últimos 100 registros</span></div><div class="order-table-wrap"><table><thead><tr><th>Fecha</th><th>Ingrediente</th><th>Cantidad</th><th>Motivo</th></tr></thead><tbody>${W.movements.map(m=>`<tr><td>${D.date(m.creado)}</td><td>${D.esc(m.nombre)}</td><td class="${Number(m.cantidad)<0?'low-stock':''}">${Number(m.cantidad)>0?'+':''}${Number(m.cantidad)} ${D.esc(m.unidad)}</td><td>${D.esc(m.motivo)}</td></tr>`).join('')||'<tr><td colspan="4">Aún no hay movimientos.</td></tr>'}</tbody></table></div>`);
   const search=document.querySelector('#stock-search'), lowOnly=document.querySelector('#stock-low');
   const rows=new Map([...document.querySelectorAll('[data-stock-id]')].map(row=>[Number(row.dataset.stockId),row]));
   const empty=document.querySelector('#stock-empty');
@@ -72,7 +140,7 @@ function drawStock(){
     let visible=0;
     W.stock.forEach(item=>{
       const matches=item.nombre.toLocaleLowerCase('es').includes(term) &&
-        (!lowOnly.checked || Number(item.disponible)<=Number(item.minimo));
+        (!lowOnly.checked || stockLevel(item)!=='normal');
       rows.get(item.id).hidden=!matches;
       if(matches) visible++;
     });

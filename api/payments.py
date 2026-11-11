@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from . import services
+from . import agenda, services
 from .models import PagoWebpay, Pedido
 
 
@@ -15,12 +15,13 @@ def webpay_transaction():
     from transbank.common.integration_type import IntegrationType
     from transbank.common.options import WebpayOptions
     from transbank.webpay.webpay_plus.transaction import Transaction
-    options=WebpayOptions(IntegrationCommerceCodes.WEBPAY_PLUS,IntegrationApiKeys.WEBPAY,IntegrationType.TEST,timeout=20)
+    options=WebpayOptions(IntegrationCommerceCodes.WEBPAY_PLUS,IntegrationApiKeys.WEBPAY,IntegrationType.TEST,timeout=15)
     return Transaction(options)
 
 
 @transaction.atomic
 def iniciar_pago(usuario,datos,return_url):
+    agenda.bloquear_agenda()
     anterior=PagoWebpay.objects.select_for_update().filter(solicitud=datos['solicitud']).first()
     if anterior:
         if anterior.cliente_id!=usuario.pk: raise PermissionDenied()
@@ -28,6 +29,7 @@ def iniciar_pago(usuario,datos,return_url):
             return {'pago_id':anterior.pk,'token':anterior.token_ws,'url':anterior.url_webpay}
         raise ValidationError('Este intento de compra ya terminó. Actualiza el carrito para iniciar otro.')
 
+    agenda.validar_capacidad(datos['retiro'], datos['items'])
     pedidos=[]
     total=Decimal('0')
     for item in datos['items']:
@@ -65,11 +67,13 @@ def iniciar_pago(usuario,datos,return_url):
 
 @transaction.atomic
 def iniciar_pago_pedido(usuario,pedido_id,return_url):
+    agenda.bloquear_agenda()
     pedido=Pedido.objects.select_for_update().filter(pk=pedido_id,cliente=usuario).first()
     if not pedido: raise PermissionDenied()
     previo=pedido.pagos_webpay.select_for_update().filter(estado=PagoWebpay.Estado.INICIADO).order_by('-creado').first()
     if previo and previo.token_ws and previo.url_webpay:
         return {'pago_id':previo.pk,'token':previo.token_ws,'url':previo.url_webpay}
+    agenda.validar_capacidad(pedido.retiro, [{'receta': pedido.receta, 'cantidad': pedido.cantidad}], excluir=pedido.pk)
     if pedido.estado == Pedido.Estado.COTIZADO:
         pedido = services.aceptar(pedido.pk, usuario)
     if pedido.estado!=Pedido.Estado.RECIBIDO or pedido.pagado or pedido.consumido:

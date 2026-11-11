@@ -12,10 +12,17 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 
 from .payments import abortar_pago, confirmar_pago, iniciar_pago, iniciar_pago_pedido, verificar_pago
-from .serializer import CheckoutSerializer
+from .agenda import primer_retiro
+from .serializer import CarritoSerializer, CheckoutSerializer
 
 logger=logging.getLogger(__name__)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def disponibilidad(request):
+    serializer = CarritoSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    return Response({'primera_hora': primer_retiro(serializer.validated_data['items'], margen=10).isoformat()})
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
