@@ -181,6 +181,9 @@ function initAuth(){
     document.querySelector('#auth-title').textContent=registering?'Crea tu cuenta.':admin?'Bienvenida al taller.':'Qué gusto verte.';
     document.querySelector('#auth-description').textContent=admin?'Ingresa con la cuenta de administración del local.':'Inicia sesión o crea tu cuenta para encargar y seguir tus compras.';
     document.querySelector('#auth-hint').textContent=admin?'Sólo las cuentas autorizadas por el local pueden entrar al taller.':'Tu cuenta de cliente sólo muestra tus compras.';
+    document.querySelector('#email-label').textContent=admin?'Correo o nombre de usuario':'Correo electrónico';
+    form.email.type=admin?'text':'email';form.email.autocomplete=admin?'username':'email';
+    form.email.placeholder=admin?'admin o tu correo':'tu@correo.cl';
     submit.textContent=registering?'Crear mi cuenta →':admin?'Entrar al panel del local →':'Entrar a mi cuenta →';
     form.password.autocomplete=registering?'new-password':'current-password';error.textContent='';
   }

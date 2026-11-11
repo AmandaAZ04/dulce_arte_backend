@@ -20,7 +20,7 @@
     </div>
     <form id="auth-form">
       <label id="name-label" hidden>Tu nombre<input name="nombre" autocomplete="given-name" minlength="2" maxlength="100" placeholder="¿Cómo te llamas?"></label>
-      <label>Correo electrónico<input name="email" type="email" required autocomplete="email" placeholder="tu@correo.cl"></label>
+      <label><span id="email-label">Correo electrónico</span><input name="email" type="email" required autocomplete="email" placeholder="tu@correo.cl"></label>
       <label>Contraseña<input name="password" type="password" minlength="8" required autocomplete="current-password" placeholder="Tu contraseña"></label>
       <label id="confirm-label" hidden>Repite tu contraseña<input name="password_confirm" type="password" minlength="8" autocomplete="new-password" placeholder="Vuelve a escribirla"></label>
       <p class="form-error auth-error" id="auth-error" role="alert" aria-live="polite"></p>
