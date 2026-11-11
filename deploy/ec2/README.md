@@ -98,29 +98,6 @@ sudo systemctl enable --now dulce_arte nginx
 
 Visita `http://TU_IP_PUBLICA/`, luego comprueba `/admin/` y `/equipo/`.
 
-## Activar correo real de Hotmail
-
-Outlook.com requiere autenticación moderna/OAuth2; no pongas la contraseña del buzón en el archivo de entorno. Registra una aplicación en [Microsoft Entra](https://entra.microsoft.com/):
-
-1. En **App registrations**, crea una aplicación compatible con **Personal Microsoft accounts**. No hace falta crear un client secret.
-2. En **API permissions**, agrega Microsoft Graph → **Delegated permissions** → `Mail.Send`.
-3. En **Authentication**, habilita **Allow public client flows** para que funcione el inicio de sesión por código de dispositivo.
-4. Copia el **Application (client) ID**. En `/etc/dulce_arte/dulce_arte.env`, configura `MS_GRAPH_CLIENT_ID` con ese ID, deja `MS_GRAPH_TENANT=consumers`, y cambia `EMAIL_BACKEND` a `api.mail_backend.MicrosoftGraphEmailBackend`.
-5. Ejecuta el comando de autorización. Abrirá el flujo con un código de un solo uso; ingrésalo tú en la página de Microsoft y aprueba el permiso usando `dulce_arte_backend@hotmail.com`:
-
-   ```bash
-   sudo -u dulcearte bash -c 'set -a; . /etc/dulce_arte/dulce_arte.env; set +a; cd /srv/dulce_arte/app; /srv/dulce_arte/venv/bin/python manage.py autenticar_correo'
-   ```
-
-6. El token se guarda en `/srv/dulce_arte/msal_token_cache.bin` con permisos privados. No lo copies ni lo subas a Git. Reinicia Gunicorn y reintenta avisos que quedaron pendientes:
-
-   ```bash
-   sudo systemctl restart dulce_arte
-   sudo -u dulcearte bash -c 'set -a; . /etc/dulce_arte/dulce_arte.env; set +a; cd /srv/dulce_arte/app; /srv/dulce_arte/venv/bin/python manage.py enviar_pendientes'
-   ```
-
-Microsoft documenta que Hotmail/Outlook.com usa OAuth2 para SMTP y que Microsoft Graph permite enviar con permiso delegado `Mail.Send`. La aplicación envía el QR y PDF del pedido desde el buzón autenticado.
-
 ## Diagnóstico y actualización
 
 ```bash

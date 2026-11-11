@@ -35,9 +35,9 @@ Abre `http://127.0.0.1:8000/`.
 4. Solo el equipo confirma pago presencial y entrega con QR.
 5. El QR muestra solo información necesaria para seguimiento.
 
-## Correo y comprobante
+## Boleta de pedido con QR
 
-El entorno local guarda los correos en `correos/`. En EC2, el envío de Hotmail puede usar Microsoft Graph con OAuth 2.0; registra una aplicación con permiso delegado `Mail.Send`, inicia sesión con el buzón y usa `manage.py autenticar_correo`. No se almacena la contraseña de Hotmail. La guía está en `deploy/ec2/README.md`. El correo adjunta un QR y un comprobante de pedido, no una boleta tributaria.
+En **Mis compras**, el cliente puede descargar un PDF con los datos de su pedido y el QR para el retiro en el local. El QR también aparece en el seguimiento. La descarga sólo está disponible para pedidos confirmados; las cotizaciones pendientes y los pedidos cancelados no muestran el comprobante. El documento es informativo y no reemplaza una boleta tributaria.
 
 ## Pruebas
 

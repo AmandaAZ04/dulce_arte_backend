@@ -44,7 +44,3 @@ class HistorialAdmin(Auditoria):
 class MaterialAdmin(Auditoria): list_display=['pedido','insumo','cantidad']
 @admin.register(IngredienteReceta)
 class BOMAdmin(Auditoria): list_display=['receta','insumo','cantidad']
-@admin.register(Aviso)
-class AvisoAdmin(Auditoria):
-    list_display=['pedido','evento','enviado','intentos','error']
-    list_filter=['enviado']

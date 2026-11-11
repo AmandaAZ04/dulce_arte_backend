@@ -3,17 +3,15 @@ from decimal import Decimal
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
-from unittest.mock import patch
-from django.test import TestCase,TransactionTestCase,override_settings,Client
+from django.test import TestCase,TransactionTestCase,Client
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections,connection
 from django.utils import timezone
-from django.core import mail
 from rest_framework.test import APIClient
 from rest_framework.exceptions import ValidationError,PermissionDenied
 from .models import *
 from . import services
-from .mail import enviar_aviso,comprobante,qr_png
+from .mail import comprobante,qr_png
 
 PASSWORD='PruebaDulce!2026'
 def setup_data(obj):
@@ -29,7 +27,6 @@ def payload(obj,**kwargs):
     data={'receta':obj.recipe,'cantidad':1,'retiro':(timezone.now()+timedelta(days=3)).replace(hour=15,minute=0),'telefono':'+56912345678','diseno':'','preferencias':'','solicitud':uuid.uuid4()}
     data.update(kwargs);return data
 
-@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class NegocioTests(TestCase):
     def setUp(self): setup_data(self)
     def order(self,**kw): return services.crear_pedido(self.client_user,payload(self,**kw))
@@ -110,15 +107,24 @@ class NegocioTests(TestCase):
     def test_precio_cliente_no_controla_total(self):
         data=payload(self);data['receta']=self.recipe.pk;data['solicitud']=str(data['solicitud']);data['total']=1
         r=self.api.post('/api/pedidos/',data,format='json');self.assertEqual(r.status_code,201);self.assertEqual(Decimal(r.data['total']),10000)
-    def test_correo_pdf_qr_y_reintento(self):
-        p=self.order();av=p.avisos.get();enviar_aviso(av.pk);enviar_aviso(av.pk)
-        self.assertEqual(len(mail.outbox),1);self.assertEqual(len(mail.outbox[0].attachments),2)
-        self.assertTrue(comprobante(p).startswith(b'%PDF'));self.assertTrue(qr_png(p).startswith(b'\x89PNG'))
-    def test_fallo_correo_no_pierde_pedido(self):
-        p=self.order();av=p.avisos.get()
-        with patch('django.core.mail.EmailMessage.send',side_effect=OSError('offline')): enviar_aviso(av.pk)
-        av.refresh_from_db();self.assertFalse(av.enviado);self.assertEqual(Pedido.objects.count(),1)
-        enviar_aviso(av.pk);av.refresh_from_db();self.assertTrue(av.enviado)
+    def test_cliente_descarga_comprobante_pdf_con_qr(self):
+        p=self.order()
+        response=self.api.get(f'/api/pedidos/{p.pk}/comprobante/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response['Content-Type'],'application/pdf')
+        self.assertIn('attachment',response['Content-Disposition'])
+        self.assertTrue(response.content.startswith(b'%PDF'))
+        self.assertTrue(qr_png(p).startswith(b'\x89PNG'))
+        qr=self.api.get(f'/api/pedidos/{p.pk}/qr/')
+        self.assertEqual(qr.status_code,200)
+        self.assertEqual(qr['Content-Type'],'image/png')
+    def test_no_descarga_boleta_antes_de_confirmar_o_cancelado(self):
+        p=self.order(diseno='Flores')
+        for suffix in ['comprobante/','qr/']:
+            self.assertEqual(self.api.get(f'/api/pedidos/{p.pk}/{suffix}').status_code,404)
+        p.estado='CANCELADO';p.save(update_fields=['estado'])
+        for suffix in ['comprobante/','qr/']:
+            self.assertEqual(self.api.get(f'/api/pedidos/{p.pk}/{suffix}').status_code,404)
     def test_csrf_login_y_registro(self):
         c=Client(enforce_csrf_checks=True)
         self.assertEqual(c.post('/api/cuenta/',data='{}',content_type='application/json').status_code,403)
@@ -132,7 +138,6 @@ class NegocioTests(TestCase):
         self.client.post('/api/cuenta/',data={'modo':'logout'},content_type='application/json')
         self.assertEqual(self.client.get('/mis-pedidos/').status_code,302)
 
-@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class ConcurrenciaTests(TransactionTestCase):
     def setUp(self): setup_data(self)
     def test_dos_pedidos_disputan_ultimo_stock(self):
@@ -140,15 +145,14 @@ class ConcurrenciaTests(TransactionTestCase):
         def buy():
             close_old_connections();barrier.wait()
             try:
-                with patch('api.services.avisar'):
-                    services.crear_pedido(self.client_user,payload(self))
+                services.crear_pedido(self.client_user,payload(self))
                 return True
             except ValidationError: return False
             finally: close_old_connections()
         with ThreadPoolExecutor(max_workers=2) as pool: results=list(pool.map(lambda _:buy(),range(2)))
         self.assertEqual(sorted(results),[False,True]);self.flour.refresh_from_db();self.assertEqual(self.flour.reservado,300)
     def test_dos_cocineros_no_descuentan_doble(self):
-        with patch('api.services.avisar'): p=services.crear_pedido(self.client_user,payload(self))
+        p=services.crear_pedido(self.client_user,payload(self))
         barrier=Barrier(2)
         def cook():
             close_old_connections();barrier.wait()

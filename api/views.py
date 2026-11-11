@@ -14,9 +14,9 @@ from rest_framework import viewsets,status
 from rest_framework.decorators import action,api_view,permission_classes
 from rest_framework.permissions import AllowAny,IsAdminUser,IsAuthenticated,BasePermission,SAFE_METHODS
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.throttling import ScopedRateThrottle
-from .models import Insumo,Receta,Pedido,Movimiento,Aviso
+from .models import Insumo,Receta,Pedido,Movimiento
 from .serializer import *
 from . import services
 from .mail import comprobante,qr_png
@@ -120,11 +120,17 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(self.get_serializer(p).data)
     @action(detail=True,methods=['get'])
     def comprobante(self,request,pk=None):
-        p=self.get_object();r=HttpResponse(comprobante(p),content_type='application/pdf')
+        p=self.get_object()
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','CANCELADO']:
+            raise NotFound()
+        r=HttpResponse(comprobante(p),content_type='application/pdf')
         r['Content-Disposition']=f'attachment; filename="{p.codigo}.pdf"';r['Cache-Control']='no-store';return r
     @action(detail=True,methods=['get'])
     def qr(self,request,pk=None):
-        r=HttpResponse(qr_png(self.get_object()),content_type='image/png');r['Cache-Control']='no-store';return r
+        p=self.get_object()
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','CANCELADO']:
+            raise NotFound()
+        r=HttpResponse(qr_png(p),content_type='image/png');r['Cache-Control']='no-store';return r
 
 class MovimientoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset=Movimiento.objects.select_related('insumo').all()[:100]
@@ -138,12 +144,3 @@ def seguimiento(request,token):
     # El enlace QR no publica datos personales, receta interna ni autoriza el retiro.
     data={'codigo':p.codigo,'producto':p.producto,'cantidad':p.cantidad,'estado':p.estado,'etiqueta':p.get_estado_display(),'retiro':p.retiro,'historial':[{'estado':h.estado,'etiqueta':h.get_estado_display(),'creado':h.creado} for h in p.historial.all()]}
     response=Response(data);response['Cache-Control']='no-store';response['Referrer-Policy']='no-referrer';return response
-
-@api_view(['GET','POST'])
-@permission_classes([IsAdminUser])
-def correos(request):
-    from django.conf import settings
-    from .mail import enviar_aviso
-    if request.method=='POST':
-        for pk in Aviso.objects.filter(enviado=False).values_list('pk',flat=True)[:20]: enviar_aviso(pk)
-    return Response({'modo':'smtp' if settings.EMAIL_BACKEND.endswith('smtp.EmailBackend') else 'local','pendientes':Aviso.objects.filter(enviado=False).count()})

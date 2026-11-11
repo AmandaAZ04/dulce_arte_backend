@@ -92,18 +92,14 @@ class PedidoSerializer(serializers.ModelSerializer):
     cliente_email=serializers.EmailField(source='cliente.email',read_only=True)
     historial=HistorialSerializer(many=True,read_only=True)
     materiales=serializers.SerializerMethodField()
-    correo=serializers.SerializerMethodField()
     class Meta:
         model=Pedido
-        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','estado','etiqueta','pagado','token','cliente_nombre','cliente_email','historial','materiales','correo','creado']
+        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','estado','etiqueta','pagado','token','cliente_nombre','cliente_email','historial','materiales','creado']
         read_only_fields=fields
     def get_cliente_nombre(self,p): return p.cliente.get_full_name() or p.cliente.username
     def get_materiales(self,p):
         if not self.context['request'].user.is_staff: return []
         return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'cantidad':str(m.cantidad),'unidad':m.insumo.unidad} for m in p.materiales.select_related('insumo')]
-    def get_correo(self,p):
-        return 'pendiente' if p.avisos.filter(enviado=False).exists() else 'procesado'
-
 class CotizacionSerializer(serializers.Serializer):
     total=serializers.DecimalField(max_digits=12,decimal_places=0,min_value=1)
     nota=serializers.CharField(max_length=1500,allow_blank=True)

@@ -2,16 +2,10 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError, PermissionDenied
-from .models import Insumo, Receta, Pedido, MaterialPedido, Movimiento, Historial, Aviso
+from .models import Insumo, Receta, Pedido, MaterialPedido, Movimiento, Historial
 
 def registrar(pedido, usuario, detalle):
     Historial.objects.create(pedido=pedido,usuario=usuario,estado=pedido.estado,detalle=detalle)
-
-def avisar(pedido, evento):
-    aviso, _ = Aviso.objects.get_or_create(pedido=pedido,evento=evento)
-    # Un fallo SMTP nunca deshace una reserva; el aviso queda pendiente para reintento.
-    from .mail import enviar_aviso
-    transaction.on_commit(lambda: enviar_aviso(aviso.pk))
 
 def bloquear_materiales(pedido):
     materiales = list(pedido.materiales.select_related('insumo').order_by('insumo_id'))
@@ -43,7 +37,6 @@ def crear_pedido(usuario, datos):
         MaterialPedido.objects.create(pedido=p,insumo=item.insumo,cantidad=item.cantidad*p.cantidad)
     if not personalizado: reservar(p)
     registrar(p,usuario,'Solicitud personalizada recibida' if personalizado else 'Pedido confirmado; ingredientes reservados')
-    avisar(p,'creado')
     return p
 
 @transaction.atomic
@@ -59,7 +52,6 @@ def cotizar(pedido_id, usuario, total, nota, materiales):
     p.estado='COTIZADO'
     p.save()
     registrar(p,usuario,'Cotización preparada para aprobación del cliente')
-    avisar(p, f'cotizacion-{p.historial.count()}')
     return p
 
 @transaction.atomic
@@ -73,7 +65,6 @@ def aceptar(pedido_id, usuario):
     p.estado='RECIBIDO'
     p.save()
     registrar(p,usuario,'Cotización aceptada; ingredientes reservados')
-    avisar(p,'aceptado')
     return p
 
 @transaction.atomic
@@ -104,7 +95,6 @@ def cambiar_estado(pedido_id, usuario, nuevo):
             p.consumido=True
     p.estado=nuevo; p.save()
     registrar(p,usuario,'Cancelado; los ingredientes ya utilizados no vuelven a bodega' if nuevo=='CANCELADO' and p.consumido else p.get_estado_display())
-    if nuevo in ['LISTO','CANCELADO']: avisar(p,nuevo.lower())
     return p
 
 @transaction.atomic
@@ -125,5 +115,4 @@ def retirar(token, usuario, pagado):
     if not (pagado or p.pagado): raise ValidationError('Confirma que el pago fue recibido en el local.')
     p.pagado=True; p.estado='RETIRADO'; p.save()
     registrar(p,usuario,'Pago recibido y retiro confirmado en mesón')
-    avisar(p,'retirado')
     return p

@@ -6,4 +6,4 @@ router.register('recetas',views.RecetaViewSet,basename='receta')
 router.register('insumos',views.InsumoViewSet)
 router.register('pedidos',views.PedidoViewSet,basename='pedido')
 router.register('movimientos',views.MovimientoViewSet)
-urlpatterns=[path('cuenta/',views.cuenta),path('seguimiento/<uuid:token>/',views.seguimiento),path('correos/',views.correos),path('',include(router.urls))]
+urlpatterns=[path('cuenta/',views.cuenta),path('seguimiento/<uuid:token>/',views.seguimiento),path('',include(router.urls))]

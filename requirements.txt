@@ -4,4 +4,3 @@ psycopg[binary]==3.3.8
 python-dotenv==1.2.4
 qrcode[pil]==8.2
 reportlab==5.1.0
-msal>=1.31,<2
