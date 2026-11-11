@@ -31,6 +31,11 @@ class PedidoAdmin(Auditoria):
     list_display=['codigo','cliente','producto','retiro','estado','total','pagado']
     list_filter=['estado','pagado','retiro']
     search_fields=['producto','cliente__email','cliente__first_name']
+@admin.register(PagoWebpay)
+class PagoWebpayAdmin(Auditoria):
+    list_display=['buy_order','cliente','monto','estado','codigo_respuesta','creado']
+    list_filter=['estado','creado']
+    search_fields=['buy_order','cliente__email','pedidos__producto']
 @admin.register(Movimiento)
 class MovimientoAdmin(Auditoria):
     list_display=['insumo','cantidad','motivo','usuario','creado']

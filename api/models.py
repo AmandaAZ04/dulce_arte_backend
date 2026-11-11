@@ -44,6 +44,7 @@ class Pedido(models.Model):
     class Estado(models.TextChoices):
         COTIZACION='COTIZACION','Por cotizar'
         COTIZADO='COTIZADO','Cotización lista'
+        PAGO_PENDIENTE='PAGO_PENDIENTE','Pago pendiente en Webpay'
         RECIBIDO='RECIBIDO','Recibido'
         PREPARACION='PREPARACION','En preparación'
         HORNEADO='HORNEADO','Horneado / decorado'
@@ -74,6 +75,27 @@ class Pedido(models.Model):
     @property
     def codigo(self): return f'DA-{self.pk:04d}'
     def __str__(self): return f'{self.codigo} · {self.producto}'
+
+class PagoWebpay(models.Model):
+    class Estado(models.TextChoices):
+        INICIADO='INICIADO','Pago iniciado'
+        PAGADO='PAGADO','Pago aprobado'
+        RECHAZADO='RECHAZADO','Pago rechazado'
+        ANULADO='ANULADO','Pago cancelado'
+    cliente=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='pagos_webpay')
+    pedidos=models.ManyToManyField(Pedido,related_name='pagos_webpay')
+    solicitud=models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
+    buy_order=models.CharField(max_length=26,unique=True)
+    session_id=models.CharField(max_length=61)
+    token_ws=models.CharField(max_length=64,blank=True)
+    url_webpay=models.URLField(max_length=255,blank=True)
+    monto=models.DecimalField(max_digits=12,decimal_places=0)
+    estado=models.CharField(max_length=12,choices=Estado.choices,default=Estado.INICIADO)
+    codigo_respuesta=models.IntegerField(null=True,blank=True)
+    creado=models.DateTimeField(auto_now_add=True)
+    actualizado=models.DateTimeField(auto_now=True)
+    class Meta: ordering=['-creado']
+    def __str__(self): return f'{self.buy_order} · {self.get_estado_display()}'
 
 # Copia histórica de la BOM por pedido. Cambiar la receta no altera lo reservado.
 class MaterialPedido(models.Model):

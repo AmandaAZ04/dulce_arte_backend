@@ -84,6 +84,27 @@ class NuevoPedidoSerializer(serializers.Serializer):
         if not 10<=hora.hour<19: raise serializers.ValidationError('Los retiros son entre 10:00 y 18:59.')
         return v
 
+class CheckoutItemSerializer(serializers.Serializer):
+    receta=serializers.PrimaryKeyRelatedField(queryset=Receta.objects.filter(activa=True))
+    cantidad=serializers.IntegerField(min_value=1,max_value=20)
+
+class CheckoutSerializer(serializers.Serializer):
+    items=CheckoutItemSerializer(many=True,min_length=1,max_length=10)
+    retiro=serializers.DateTimeField()
+    telefono=serializers.RegexField(r'^\+?[0-9 ()-]{8,25}$')
+    solicitud=serializers.UUIDField()
+    def validate_items(self,v):
+        ids=[x['receta'].pk for x in v]
+        if len(ids)!=len(set(ids)): raise serializers.ValidationError('El carrito tiene productos repetidos. Ajusta su cantidad en el carrito.')
+        return v
+    def validate_retiro(self,v):
+        from datetime import timedelta
+        if v < timezone.now()+timedelta(hours=24): raise serializers.ValidationError('Pide con al menos 24 horas de anticipación.')
+        if v > timezone.now()+timedelta(days=90): raise serializers.ValidationError('Elige una fecha dentro de los próximos 90 días.')
+        hora=timezone.localtime(v)
+        if not 10<=hora.hour<19: raise serializers.ValidationError('Los retiros son entre 10:00 y 18:59.')
+        return v
+
 class HistorialSerializer(serializers.ModelSerializer):
     etiqueta=serializers.CharField(source='get_estado_display',read_only=True)
     class Meta: model=Historial; fields=['estado','etiqueta','detalle','creado']
@@ -95,14 +116,22 @@ class PedidoSerializer(serializers.ModelSerializer):
     cliente_email=serializers.EmailField(source='cliente.email',read_only=True)
     historial=HistorialSerializer(many=True,read_only=True)
     materiales=serializers.SerializerMethodField()
+    pago_id=serializers.SerializerMethodField()
+    pago_estado=serializers.SerializerMethodField()
     class Meta:
         model=Pedido
-        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','estado','etiqueta','pagado','token','cliente_nombre','cliente_email','historial','materiales','creado']
+        fields=['id','codigo','receta','producto','cantidad','total','retiro','telefono','diseno','preferencias','nota_equipo','estado','etiqueta','pagado','pago_id','pago_estado','token','cliente_nombre','cliente_email','historial','materiales','creado']
         read_only_fields=fields
     def get_cliente_nombre(self,p): return p.cliente.get_full_name() or p.cliente.username
     def get_materiales(self,p):
         if not self.context['request'].user.is_staff: return []
         return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'cantidad':str(m.cantidad),'unidad':m.insumo.unidad} for m in p.materiales.select_related('insumo')]
+    def get_pago_id(self,p):
+        pago=p.pagos_webpay.order_by('-creado').first()
+        return pago.pk if pago else None
+    def get_pago_estado(self,p):
+        pago=p.pagos_webpay.order_by('-creado').first()
+        return pago.estado if pago else None
 class CotizacionSerializer(serializers.Serializer):
     total=serializers.DecimalField(max_digits=12,decimal_places=0,min_value=1)
     nota=serializers.CharField(max_length=1500,allow_blank=True)

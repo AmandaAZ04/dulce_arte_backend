@@ -94,12 +94,6 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs=Pedido.objects.select_related('cliente','receta').prefetch_related('historial')
         return qs if self.request.user.is_staff else qs.filter(cliente=self.request.user)
-    def create(self,request):
-        s=NuevoPedidoSerializer(data=request.data);s.is_valid(raise_exception=True)
-        try: p=services.crear_pedido(request.user,dict(s.validated_data))
-        except IntegrityError:
-            p=get_object_or_404(Pedido,solicitud=s.validated_data['solicitud'],cliente=request.user)
-        return Response(self.get_serializer(p).data,status=201)
     @action(detail=True,methods=['post'])
     def aceptar(self,request,pk=None):
         self.get_object(); p=services.aceptar(int(pk),request.user)
@@ -121,14 +115,14 @@ class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True,methods=['get'])
     def comprobante(self,request,pk=None):
         p=self.get_object()
-        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','CANCELADO']:
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO']:
             raise NotFound()
         r=HttpResponse(comprobante(p),content_type='application/pdf')
         r['Content-Disposition']=f'attachment; filename="{p.codigo}.pdf"';r['Cache-Control']='no-store';return r
     @action(detail=True,methods=['get'])
     def qr(self,request,pk=None):
         p=self.get_object()
-        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','CANCELADO']:
+        if not request.user.is_staff and p.estado in ['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO']:
             raise NotFound()
         r=HttpResponse(qr_png(p),content_type='image/png');r['Cache-Control']='no-store';return r
 
