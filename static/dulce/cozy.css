@@ -530,3 +530,10 @@ td { border-color: var(--line); }
   .cart-line-total { grid-column: 2; }
   .cart-line-controls { gap: 8px; }
 }
+
+[data-stock-level="empty"] > td { background: #f8d8d4; border-color: #ebbbb6; color: #722b25; }
+[data-stock-level="low"] > td { background: #fff0c1; border-color: #ecd998; color: #684b15; }
+[data-stock-level="empty"] .stock-available,
+[data-stock-level="low"] .stock-available { font-weight: 700; }
+[data-stock-level="empty"] .stock-available small,
+[data-stock-level="low"] .stock-available small { color: inherit; }
