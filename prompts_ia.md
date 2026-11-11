@@ -41,3 +41,9 @@ Este archivo registra el uso de IA como apoyo. El diseño, la adaptación al cas
 **Consulta:** Crea una guía de despliegue de Django con PostgreSQL en Ubuntu EC2 usando Gunicorn, systemd y Nginx, con claves fuera de Git.
 
 **Apoyo aplicado:** Se agregaron archivos de ejemplo y una guía que mantiene variables privadas en `/etc/dulce_arte/dulce_arte.env`.
+
+## Revisión del tema 3
+
+- Consulta: «Revisa que todo funcione, arregla lo que esté mal y deja el inventario, el recetario y los pedidos en la página de Dulce Arte».
+- Apoyo: comparación con la pauta, recuperación de las secciones del taller, formulario de cotización en la ficha, filtros de inventario, recetas de ejemplo y pruebas de los flujos.
+- Decisión del proyecto: retiro presencial con QR y comprobante, según la modalidad indicada para la pastelería.

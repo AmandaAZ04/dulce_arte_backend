@@ -99,6 +99,8 @@ async function initProductPage(){
       target.querySelector('#detail-add').textContent='Agregado al carrito ✓';
     });
     target.querySelector('#detail-cart').onclick=showCart;
+    target.insertAdjacentHTML('beforeend', '<p class="product-quote-link"><button type="button" class="button outline" id="request-quote">Solicitar una cotización personalizada</button></p>');
+    target.querySelector('#request-quote').onclick=()=>quoteRequest(r);
   }catch(e){target.innerHTML=`<p class="empty">${D.esc(e.message)} <a class="text-link" href="/">Volver a la vitrina</a></p>`;}
 }
 function newRequestId(){
@@ -152,6 +154,35 @@ async function pagarPedido(id,button){
   button.disabled=true;
   try{const result=await D.api(`pagos/pedido/${id}/iniciar/`,'POST',{});redirectToWebpay(result);}
   catch(error){D.toast(error.message);button.disabled=false;}
+}
+function quoteRequest(recipe){
+  D.modal(`<h2>Personaliza ${D.esc(recipe.nombre)}</h2><p>El equipo revisará tu idea y te enviará el precio en Mis compras.</p>
+    <form id="custom-order">
+      <div class="field-row"><label>Cantidad<input type="number" name="cantidad" min="1" max="20" value="1" required></label>
+      <label>Teléfono<input type="tel" name="telefono" maxlength="25" required></label></div>
+      <label>Fecha y hora de retiro (hora de Chile)<input type="datetime-local" name="retiro" required></label>
+      <label>Diseño o dedicatoria<textarea name="diseno" maxlength="1500"></textarea></label>
+      <label>Ingredientes que quieres cambiar<textarea name="preferencias" maxlength="1500"></textarea></label>
+      <p class="form-error" role="alert"></p><button class="button full" type="submit">Enviar solicitud</button>
+    </form>`);
+  document.querySelector('#custom-order').onsubmit=async event=>{
+    event.preventDefault();
+    const form=event.currentTarget, button=form.querySelector('button'), error=form.querySelector('[role="alert"]');
+    const data=Object.fromEntries(new FormData(form));
+    if(!data.diseno.trim()&&!data.preferencias.trim()){
+      error.textContent='Escribe tu idea de diseño o los ingredientes que quieres cambiar.';
+      return;
+    }
+    button.disabled=true;
+    error.textContent='';
+    try{
+      await D.api('pedidos/','POST',{...data,receta:recipe.id,solicitud:form.dataset.solicitud ||= newRequestId()});
+      location.href='/mis-pedidos/';
+    }catch(err){
+      error.textContent=err.message;
+      button.disabled=false;
+    }
+  };
 }
 function checkoutModal(){
   const entries=cartProducts(),total=entries.reduce((sum,x)=>sum+Number(x.recipe.precio)*x.line.cantidad,0);
@@ -212,7 +243,7 @@ async function loadOrders(){
   document.querySelectorAll('[data-detail]').forEach(b=>{const p=orders.find(x=>x.id===Number(b.dataset.detail));b.onclick=()=>D.modal(`<span class="eyebrow">${p.codigo}</span><h2>${D.esc(p.producto)}</h2>${D.badge(p)}${D.timeline(p)}${!['COTIZACION','COTIZADO','PAGO_PENDIENTE','CANCELADO'].includes(p.estado)?`<img class="qr-large" src="/api/pedidos/${p.id}/qr/" alt="QR de retiro del pedido"><p class="small-text muted">Presenta este QR en el mesón. Es personal: no lo compartas.</p>`:'<p class="notice">El QR estará disponible cuando el pedido quede confirmado.</p>'}`);});
   document.querySelectorAll('[data-check-payment]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const result=await D.api(`pagos/${b.dataset.checkPayment}/verificar/`,'POST',{});if(result.pagado){localStorage.removeItem(CART_KEY);D.toast('¡Pago aprobado! El pedido ya está confirmado.');}else D.toast(result.estado==='INICIADO'?'Webpay todavía espera la respuesta. Completa o cancela el pago en esa ventana.':'El pago no se aprobó. Vuelve a agregar el producto al carrito.');await loadOrders();}catch(e){D.toast(e.message);b.disabled=false;}});
   document.querySelectorAll('[data-pay-order]').forEach(b=>b.onclick=()=>pagarPedido(Number(b.dataset.payOrder),b));
-  document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await D.api(`pedidos/${b.dataset.accept}/aceptar/`,'POST',{});const payment=await D.api(`pagos/pedido/${b.dataset.accept}/iniciar/`,'POST',{});redirectToWebpay(payment);}catch(e){D.toast(e.message);b.disabled=false;}});
+  document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const payment=await D.api(`pagos/pedido/${b.dataset.accept}/iniciar/`,'POST',{});redirectToWebpay(payment);}catch(e){D.toast(e.message);b.disabled=false;}});
   document.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>{D.modal('<h2>¿Cancelar este pedido?</h2><p>Se liberarán los ingredientes reservados. Esta acción no puede deshacerse.</p><button class="button danger" id="confirm-cancel">Sí, cancelar pedido</button>');document.querySelector('#confirm-cancel').onclick=async e=>{e.target.disabled=true;try{await D.api(`pedidos/${b.dataset.cancel}/estado/`,'POST',{estado:'CANCELADO'});D.close();await loadOrders();}catch(err){D.toast(err.message);e.target.disabled=false;}};});
 }
 async function tracking(){

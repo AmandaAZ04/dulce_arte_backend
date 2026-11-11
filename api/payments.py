@@ -70,6 +70,8 @@ def iniciar_pago_pedido(usuario,pedido_id,return_url):
     previo=pedido.pagos_webpay.select_for_update().filter(estado=PagoWebpay.Estado.INICIADO).order_by('-creado').first()
     if previo and previo.token_ws and previo.url_webpay:
         return {'pago_id':previo.pk,'token':previo.token_ws,'url':previo.url_webpay}
+    if pedido.estado == Pedido.Estado.COTIZADO:
+        pedido = services.aceptar(pedido.pk, usuario)
     if pedido.estado!=Pedido.Estado.RECIBIDO or pedido.pagado or pedido.consumido:
         raise ValidationError('Este pedido todavía no se puede pagar en Webpay.')
     pago=PagoWebpay.objects.create(
@@ -150,8 +152,8 @@ def confirmar_pago(token):
     return True
 
 
-def abortar_pago(buy_order):
-    pago=PagoWebpay.objects.filter(buy_order=buy_order).first()
+def abortar_pago(buy_order, token):
+    pago=PagoWebpay.objects.filter(buy_order=buy_order, token_ws=token).first()
     if pago:
         cancelar_pago(pago,PagoWebpay.Estado.ANULADO,'El cliente canceló el pago en Webpay')
         return True

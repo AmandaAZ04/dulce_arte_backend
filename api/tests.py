@@ -3,8 +3,10 @@ from decimal import Decimal
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from unittest.mock import patch
 from django.test import TestCase,TransactionTestCase,Client
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.db import close_old_connections,connection
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -104,9 +106,59 @@ class NegocioTests(TestCase):
     def test_fecha_y_cantidad_invalidas(self):
         data=payload(self);data['receta']=self.recipe.pk;data['solicitud']=str(data['solicitud']);data['retiro']=timezone.now().isoformat();data['cantidad']=0
         self.assertEqual(self.api.post('/api/pedidos/',data,format='json').status_code,400)
-    def test_precio_cliente_no_controla_total(self):
-        data=payload(self);data['receta']=self.recipe.pk;data['solicitud']=str(data['solicitud']);data['total']=1
-        r=self.api.post('/api/pedidos/',data,format='json');self.assertEqual(r.status_code,201);self.assertEqual(Decimal(r.data['total']),10000)
+    def test_cotizacion_desde_vitrina_no_reserva_ni_confia_en_precio(self):
+        data=payload(self, diseno='Rosa')
+        data.update(receta=self.recipe.pk, solicitud=str(data['solicitud']), total=1,
+                    retiro=(timezone.localtime()+timedelta(days=3)).replace(hour=15,minute=0))
+        r=self.api.post('/api/pedidos/',data,format='json')
+        self.assertEqual(r.status_code,201)
+        self.assertEqual(r.data['estado'],'COTIZACION')
+        self.assertEqual(Decimal(r.data['total']),10000)
+        self.flour.refresh_from_db()
+        self.assertEqual(self.flour.reservado,0)
+        data.update(diseno='',solicitud=str(uuid.uuid4()))
+        self.assertEqual(self.api.post('/api/pedidos/',data,format='json').status_code,400)
+
+    def test_taller_carga_sus_herramientas(self):
+        self.client.force_login(self.staff)
+        response=self.client.get('/equipo/')
+        self.assertContains(response,'/static/dulce/equipo.js')
+        self.assertNotContains(response,'href="/admin/"')
+
+    def test_demo_conserva_existencias_y_carga_recetas(self):
+        call_command('cargar_demo',verbosity=0)
+        call_command('cargar_demo',verbosity=0)
+        self.flour.refresh_from_db()
+        self.assertEqual(self.flour.stock,1000)
+        self.assertEqual(Receta.objects.filter(nombre='Brownies de chocolate').count(),1)
+        self.assertEqual(Receta.objects.get(nombre='Galletas de limón').ingredientes.count(),5)
+        self.assertEqual(Insumo.objects.get(nombre='Queso crema').disponible,0)
+
+    @patch('api.payments.webpay_transaction')
+    def test_webpay_confirma_antes_de_enviar_a_cocina(self, gateway):
+        gateway.return_value.create.return_value={
+            'token':'token-demo','url':'https://webpay3gint.transbank.cl/webpayserver/initTransaction',
+        }
+        retiro=(timezone.localtime()+timedelta(days=3)).replace(hour=15,minute=0)
+        response=self.api.post('/api/pagos/iniciar/',{
+            'items':[{'receta':self.recipe.pk,'cantidad':1}],
+            'telefono':'+56912345678','retiro':retiro.isoformat(),'solicitud':str(uuid.uuid4()),
+        },format='json')
+        self.assertEqual(response.status_code,201)
+        pago=PagoWebpay.objects.get(pk=response.data['pago_id'])
+        pedido=pago.pedidos.get()
+        self.assertEqual(pedido.estado,Pedido.Estado.PAGO_PENDIENTE)
+        self.assertEqual(self.api.get(f'/api/pedidos/{pedido.pk}/comprobante/').status_code,404)
+        gateway.return_value.commit.return_value={
+            'status':'AUTHORIZED','response_code':0,'amount':10000,
+            'buy_order':pago.buy_order,'session_id':pago.session_id,
+        }
+        response=self.client.post('/api/pagos/retorno/',{'token_ws':'token-demo'})
+        self.assertRedirects(response,'/mis-pedidos/?pago=ok',fetch_redirect_response=False)
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado,Pedido.Estado.RECIBIDO)
+        self.assertTrue(pedido.pagado)
+        self.assertEqual(self.api.get(f'/api/pedidos/{pedido.pk}/comprobante/').status_code,200)
     def test_cliente_descarga_comprobante_pdf_con_qr(self):
         p=self.order()
         response=self.api.get(f'/api/pedidos/{p.pk}/comprobante/')

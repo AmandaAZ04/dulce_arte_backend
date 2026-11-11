@@ -102,8 +102,18 @@ class InsumoViewSet(viewsets.ModelViewSet):
 class PedidoViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class=PedidoSerializer
     def get_queryset(self):
-        qs=Pedido.objects.select_related('cliente','receta').prefetch_related('historial')
-        return qs if self.request.user.is_staff else qs.filter(cliente=self.request.user)
+        qs=Pedido.objects.select_related('cliente','receta').prefetch_related('historial','pagos_webpay')
+        if self.request.user.is_staff:
+            return qs.prefetch_related('materiales__insumo')
+        return qs.filter(cliente=self.request.user)
+    def create(self, request):
+        serializer = NuevoPedidoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        datos = serializer.validated_data
+        if not (datos['diseno'].strip() or datos['preferencias'].strip()):
+            raise ValidationError('Describe el diseño o los ingredientes que quieres personalizar. Para una compra estándar, usa el carrito.')
+        pedido = services.crear_pedido(request.user, datos)
+        return Response(self.get_serializer(pedido).data, status=status.HTTP_201_CREATED)
     @action(detail=True,methods=['post'])
     def aceptar(self,request,pk=None):
         self.get_object(); p=services.aceptar(int(pk),request.user)

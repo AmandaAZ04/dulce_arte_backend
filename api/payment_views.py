@@ -74,8 +74,8 @@ def retorno(request):
     canceled=request.POST.get('TBK_TOKEN') or request.GET.get('TBK_TOKEN')
     if canceled and buy_order:
         try:
-            abortar_pago(buy_order)
+            if abortar_pago(buy_order, canceled):
+                return HttpResponseRedirect('/mis-pedidos/?pago=cancelado')
         except Exception:
             logger.exception('No se pudo liberar la reserva de una compra cancelada')
-        return HttpResponseRedirect('/mis-pedidos/?pago=cancelado')
     return HttpResponseRedirect('/mis-pedidos/?pago=sin-respuesta')

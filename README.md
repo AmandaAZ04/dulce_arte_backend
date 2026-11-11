@@ -7,11 +7,11 @@ Aplicación para gestionar pedidos personalizados en una pastelería artesanal.
 **Sección:** IEC-N4-C1
 **Año:** 2026
 
-Todos los pedidos se retiran en el local. No hay despacho a domicilio.
+Todos los pedidos se retiran en el local. El módulo de entregas del tema 3 se presenta como una cola de retiros en mesón, con búsqueda por código y confirmación de entrega mediante QR. Las rutas de despacho no forman parte de esta modalidad.
 
 ## Funcionalidades
 
-- Vitrina pública de recetas y pedidos con retiro entre las 10:00 y las 19:00.
+- Vitrina para clientes con fichas de productos, carrito y Webpay de integración.
 - Cuentas de clientes y del equipo con permisos separados.
 - Cotizaciones aprobadas por el cliente para encargos personalizados.
 - Kanban de cocina y lista de materiales con reserva de inventario.
@@ -29,10 +29,10 @@ Abre `http://127.0.0.1:8000/`.
 
 ## Reglas principales
 
-1. Un pedido estándar reserva ingredientes. Un encargo personalizado espera cotización.
+1. Al iniciar el pago se reservan los ingredientes. Una solicitud personalizada espera cotización antes de iniciar el pago.
 2. Al pasar a preparación se consumen los ingredientes mediante una transacción PostgreSQL.
 3. La cancelación libera reservas no consumidas. Los ingredientes ya usados no regresan a bodega.
-4. Solo el equipo confirma pago presencial y entrega con QR.
+4. Webpay confirma el pago de prueba. El equipo registra el retiro en mesón.
 5. El QR muestra solo información necesaria para seguimiento.
 
 ## Boleta de pedido con QR
@@ -45,7 +45,12 @@ Ejecuta `python manage.py test api --verbosity 2`. Las pruebas cubren inventario
 
 ## Despliegue
 
-La guía de PostgreSQL, Gunicorn, systemd y Nginx está en `deploy/ec2/README.md`. Al publicar, agrega la IP pública de EC2 aquí.
+La guía de PostgreSQL, Gunicorn, systemd y Nginx está en `deploy/ec2/README.md`.
+La última dirección de la instancia usada para el proyecto es [Dulce Arte en EC2](http://3.148.192.101/). Si cambia la IP pública, actualiza este enlace y la configuración de despliegue.
+
+Para la defensa, el equipo gestiona la operación diaria en `/equipo/` y puede abrir `/admin/` directamente con una cuenta autorizada para mostrar el administrador requerido por la pauta.
+
+`python manage.py cargar_demo` carga ocho recetas y trece insumos de ejemplo. Se puede ejecutar de nuevo para incorporar recetas nuevas sin cambiar las existencias registradas. El cheesecake y los rollitos permiten demostrar los faltantes en el recetario al partir de una base vacía.
 
 ## Archivos relevantes
 

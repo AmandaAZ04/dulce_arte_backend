@@ -37,7 +37,7 @@ class RecetaSerializer(serializers.ModelSerializer):
     def get_ingredientes(self,r):
         return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'unidad':m.insumo.unidad,'cantidad':str(m.cantidad),'disponible':str(m.insumo.disponible),'falta':str(max(0,m.cantidad-m.insumo.disponible))} for m in r.ingredientes.all()]
     def get_ingredientes_publicos(self,r):
-        return list(r.ingredientes.select_related('insumo').order_by('pk').values_list('insumo__nombre',flat=True))
+        return [material.insumo.nombre for material in r.ingredientes.all()]
     def get_unidades_disponibles(self,r):
         return min([int(m.insumo.disponible//m.cantidad) for m in r.ingredientes.all()] or [0])
     def get_disponible(self,r): return r.activa and self.get_unidades_disponibles(r)>0
@@ -125,12 +125,12 @@ class PedidoSerializer(serializers.ModelSerializer):
     def get_cliente_nombre(self,p): return p.cliente.get_full_name() or p.cliente.username
     def get_materiales(self,p):
         if not self.context['request'].user.is_staff: return []
-        return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'cantidad':str(m.cantidad),'unidad':m.insumo.unidad} for m in p.materiales.select_related('insumo')]
+        return [{'insumo':m.insumo_id,'nombre':m.insumo.nombre,'cantidad':str(m.cantidad),'unidad':m.insumo.unidad} for m in p.materiales.all()]
     def get_pago_id(self,p):
-        pago=p.pagos_webpay.order_by('-creado').first()
+        pago=next(iter(p.pagos_webpay.all()),None)
         return pago.pk if pago else None
     def get_pago_estado(self,p):
-        pago=p.pagos_webpay.order_by('-creado').first()
+        pago=next(iter(p.pagos_webpay.all()),None)
         return pago.estado if pago else None
 class CotizacionSerializer(serializers.Serializer):
     total=serializers.DecimalField(max_digits=12,decimal_places=0,min_value=1)
