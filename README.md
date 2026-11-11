@@ -37,7 +37,7 @@ Abre `http://127.0.0.1:8000/`.
 
 ## Correo y comprobante
 
-El entorno local guarda los correos en `correos/`. El PDF es un comprobante de pedido, no una boleta tributaria. Antes de usar `dulce_arte_backend@hotmail.com` se debe integrar OAuth 2.0 de Microsoft o un proveedor transaccional; Outlook.com exige autenticación moderna y su contraseña no debe quedar en `.env` ni Git.
+El entorno local guarda los correos en `correos/`. En EC2, el envío de Hotmail puede usar Microsoft Graph con OAuth 2.0; registra una aplicación con permiso delegado `Mail.Send`, inicia sesión con el buzón y usa `manage.py autenticar_correo`. No se almacena la contraseña de Hotmail. La guía está en `deploy/ec2/README.md`. El correo adjunta un QR y un comprobante de pedido, no una boleta tributaria.
 
 ## Pruebas
 

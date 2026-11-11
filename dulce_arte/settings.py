@@ -34,6 +34,9 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD','')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS','True').lower() == 'true'
 EMAIL_TIMEOUT = 12
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL','Dulce Arte <no-reply@example.com>')
+MS_GRAPH_CLIENT_ID = os.getenv('MS_GRAPH_CLIENT_ID','')
+MS_GRAPH_TENANT = os.getenv('MS_GRAPH_TENANT','consumers')
+MS_GRAPH_TOKEN_CACHE = os.getenv('MS_GRAPH_TOKEN_CACHE','/srv/dulce_arte/msal_token_cache.bin')
 CSRF_TRUSTED_ORIGINS = [v for v in os.getenv('CSRF_TRUSTED_ORIGINS','').split(',') if v]
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
