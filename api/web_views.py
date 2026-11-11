@@ -6,6 +6,11 @@ def inicio(request):
     if not request.user.is_authenticated: return redirect('/cuenta/')
     return render(request,'inicio.html',{'direccion':settings.LOCAL_ADDRESS})
 @ensure_csrf_cookie
+def producto(request,producto_id):
+    if not request.user.is_authenticated: return redirect(f'/cuenta/?producto={producto_id}')
+    if request.user.is_staff: return redirect('/equipo/')
+    return render(request,'producto.html',{'direccion':settings.LOCAL_ADDRESS,'producto_id':producto_id})
+@ensure_csrf_cookie
 def equipo(request):
     if not request.user.is_authenticated: return redirect('/cuenta/?equipo=1')
     if not request.user.is_staff: return render(request,'sin_acceso.html',status=403)
@@ -15,7 +20,7 @@ def cuenta(request):
     if request.user.is_authenticated:
         if request.user.is_staff: return redirect('/equipo/')
         producto=request.GET.get('producto')
-        return redirect('/'+('?producto='+producto if producto and producto.isdigit() else ''))
+        return redirect('/producto/'+producto+'/' if producto and producto.isdigit() else '/')
     return render(request,'cuenta.html')
 @ensure_csrf_cookie
 def mis_pedidos(request):

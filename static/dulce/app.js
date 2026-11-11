@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     document.querySelector('#logout').onclick=async()=>{try{await D.api('cuenta/','POST',{modo:'logout'});location.href='/';}catch(e){D.toast(e.message);}};
     const page=document.body.dataset.page;
     if(page==='inicio')await initCatalog();
+    if(page==='producto')await initProductPage();
     if(page==='cuenta')initAuth();
     if(page==='pedidos')await loadOrders();
     if(page==='seguimiento')await tracking();
@@ -55,14 +56,14 @@ async function initCatalog(){
     const items=D.recipes.filter(r=>(category==='Todas'||r.categoria===category)&&(r.nombre+' '+r.descripcion).toLocaleLowerCase('es').includes(search));
     document.querySelector('#products').innerHTML=items.length?items.map(r=>`<article class="product-card ${r.disponible?'':'unavailable'}" data-product="${r.id}" tabindex="0" role="group" aria-label="${D.esc(r.nombre)}. Presiona Enter para ver sus detalles."><div class="product-image"><img src="/static/dulce/${D.esc(r.imagen)}" alt="${D.esc(r.nombre)}" loading="lazy"><span class="badge ${r.disponible?'':'gray'}">${r.disponible?'Hecho por encargo':'Por ahora, agotado'}</span></div><div class="product-body"><span class="category">${D.esc(r.categoria)} · ${r.porciones} porciones por unidad</span><h3>${D.esc(r.nombre)}</h3><p>${D.esc(r.descripcion)}</p><div class="product-bottom"><div><strong>${D.money(r.precio)}</strong><small>${r.porciones} porciones · ${r.minutos} min de preparación</small></div><button type="button" aria-label="Elegir porciones y agregar ${D.esc(r.nombre)} al carrito" ${r.disponible?'':'disabled'}>+</button></div></div></article>`).join(''):'<p class="empty">No encontramos ese antojo. Prueba con otro nombre.</p>';
     document.querySelectorAll('[data-product]').forEach(card=>{
-      card.onclick=e=>{if(e.target.closest('button'))e.preventDefault();showProduct(Number(card.dataset.product));};
-      card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showProduct(Number(card.dataset.product));}};
+      card.onclick=()=>{location.href=`/producto/${Number(card.dataset.product)}/`;};
+      card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();location.href=`/producto/${Number(card.dataset.product)}/`;}};
     });
   }
   document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{category=b.dataset.category;document.querySelectorAll('[data-category]').forEach(x=>x.classList.toggle('active',x===b));draw();});
   document.querySelector('#search').oninput=draw;draw();
   const selected=Number(new URLSearchParams(location.search).get('producto'));
-  if(D.user&&D.recipes.some(r=>r.id===selected&&r.disponible))orderModal(selected);
+  if(D.user&&D.recipes.some(r=>r.id===selected))location.replace(`/producto/${selected}/`);
 }
 function productDetails(r){
   const ingredients=(r.ingredientes_publicos||[]).length?(r.ingredientes_publicos||[]).map(x=>`<li>${D.esc(x)}</li>`).join(''):'<li>Consulta los ingredientes con nuestro equipo.</li>';
@@ -75,6 +76,30 @@ function showProduct(id){
   const next=r.disponible?`<div class="product-detail-actions"><p>Para elegir las porciones y coordinar el retiro, entra o crea tu cuenta.</p><button class="button full" id="continue-to-account">Iniciar sesión o crear cuenta →</button></div>`:'<div class="notice">Por ahora no tenemos ingredientes suficientes para aceptar este pedido. Vuelve a revisar pronto.</div>';
   D.modal(`${productDetails(r)}${next}`);
   document.querySelector('#continue-to-account')?.addEventListener('click',()=>{location.href='/cuenta/?producto='+id;});
+}
+async function initProductPage(){
+  const target=document.querySelector('#product-page');
+  try{
+    D.recipes=await D.api('recetas/');
+    saveCart(readCart().filter(x=>D.recipes.some(r=>r.id===x.receta)));
+    const id=Number(document.body.dataset.productId),r=D.recipes.find(x=>x.id===id);
+    if(!r){location.replace('/');return;}
+    document.title=`${r.nombre} · Dulce Arte`;
+    const available=Math.max(0,Number(r.unidades_disponibles)||0),servingsPerUnit=Math.max(1,Number(r.porciones)||1);
+    const cartUnits=readCart().find(x=>x.receta===id)?.cantidad||0,remaining=Math.max(0,available-cartUnits);
+    const options=Array.from({length:Math.min(20,remaining)},(_,i)=>{const units=i+1;return `<option value="${units}">${units*servingsPerUnit} porciones · ${units} ${units===1?'unidad':'unidades'}</option>`;}).join('');
+    target.innerHTML=`<a class="text-link product-back" href="/">← Volver a la vitrina</a>${productDetails(r)}<section class="product-buy-card"><div><span class="eyebrow">RETIRO EN EL LOCAL</span><h2>Tu próximo antojo</h2><p>Elige cuántas porciones quieres. Confirmas fecha y hora de retiro antes de pagar.</p><div class="product-detail-price"><span>Precio por unidad</span><strong>${D.money(r.precio)}</strong></div></div><div class="product-purchase-controls">${remaining?`<label>Porciones y cantidad<select id="detail-quantity">${options}</select><small>Una unidad trae ${servingsPerUnit} porciones. Disponible ahora: ${remaining} unidades.</small></label><button class="button full" id="detail-add">Agregar al carrito</button><button class="button full outline" id="detail-cart">Ver carrito · ${readCart().reduce((n,x)=>n+x.cantidad,0)}</button>`:'<div class="notice">Este producto está agotado por ahora. Revisa la vitrina más adelante.</div><button class="button full outline" id="detail-cart">Ver carrito</button>'}<p class="small-text muted">Pago de prueba en Webpay · Pedido para retirar en el local, sin delivery.</p></div></section>`;
+    const select=target.querySelector('#detail-quantity');
+    target.querySelector('#detail-add')?.addEventListener('click',()=>{
+      const units=Number(select.value),cart=readCart(),line=cart.find(x=>x.receta===id);
+      if((line?.cantidad||0)+units>available){D.toast('No quedan unidades suficientes para agregar esa cantidad.');return;}
+      if(line)line.cantidad+=units;else cart.push({receta:id,cantidad:units});
+      saveCart(cart);D.toast(`${r.nombre} agregado al carrito.`);
+      target.querySelector('#detail-cart').textContent=`Ver carrito · ${cart.reduce((n,x)=>n+x.cantidad,0)}`;
+      target.querySelector('#detail-add').textContent='Agregado al carrito ✓';
+    });
+    target.querySelector('#detail-cart').onclick=showCart;
+  }catch(e){target.innerHTML=`<p class="empty">${D.esc(e.message)} <a class="text-link" href="/">Volver a la vitrina</a></p>`;}
 }
 function newRequestId(){
   if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();
@@ -92,7 +117,7 @@ function readCart(){
 function saveCart(cart){localStorage.setItem(CART_KEY,JSON.stringify(cart));updateCartBadge();}
 function updateCartBadge(){
   const button=document.querySelector('#cart-open'),count=document.querySelector('#cart-count');if(!button||!count)return;
-  const total=readCart().reduce((n,x)=>n+x.cantidad,0);count.textContent=total;button.hidden=!D.user||D.user.equipo||document.body.dataset.page!=='inicio';
+  const total=readCart().reduce((n,x)=>n+x.cantidad,0);count.textContent=total;button.hidden=!D.user||D.user.equipo||!['inicio','producto'].includes(document.body.dataset.page);
 }
 function setupCart(){const button=document.querySelector('#cart-open');if(button)button.onclick=showCart;updateCartBadge();}
 function cartProducts(){return readCart().map(line=>({line,recipe:D.recipes.find(r=>r.id===line.receta)})).filter(x=>x.recipe);}
@@ -165,7 +190,7 @@ function initAuth(){
       const data=Object.fromEntries(new FormData(form));data.modo=role==='admin'?'login':mode;
       const result=await D.api('cuenta/','POST',data);
       if(role==='admin'&&!result.usuario.equipo){await D.api('cuenta/','POST',{modo:'logout'});throw Error('Esta cuenta no tiene permisos de administración. Usa la cuenta autorizada por el local.');}
-      location.href=role==='admin'?'/equipo/':params.has('producto')?'/?producto='+encodeURIComponent(params.get('producto')):'/';
+      location.href=role==='admin'?'/equipo/':params.has('producto')?'/producto/'+encodeURIComponent(params.get('producto'))+'/':'/';
     }catch(err){error.textContent=err.message;submit.disabled=false;}
   };
 }

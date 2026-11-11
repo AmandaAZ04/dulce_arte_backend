@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Producto · Dulce Arte{% endblock %}
+{% block page %}producto{% endblock %}
+{% block content %}
+<section class="wrap product-page" id="product-page" aria-live="polite">
+  <p class="empty">Preparando los detalles de este dulce…</p>
+</section>
+{% endblock %}
+{% block body_attrs %}data-product-id="{{ producto_id }}"{% endblock %}
