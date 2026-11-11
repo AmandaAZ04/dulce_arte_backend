@@ -8,8 +8,8 @@
   </div>
   <div class="auth-card">
     <div class="auth-tabs" role="tablist" aria-label="Tipo de cuenta">
-      <button type="button" class="active" data-role-tab="cliente" role="tab" aria-selected="true">Cliente</button>
-      <button type="button" data-role-tab="admin" role="tab" aria-selected="false">Administración</button>
+      <button type="button" class="active" data-role-tab="cliente" role="tab" aria-selected="true"><span>♡</span> Soy cliente</button>
+      <button type="button" data-role-tab="admin" role="tab" aria-selected="false"><span>✳</span> Soy del equipo</button>
     </div>
     <span class="eyebrow" id="auth-eyebrow">TU RINCÓN DULCE</span>
     <h2 id="auth-title">Qué gusto verte.</h2>
@@ -22,8 +22,9 @@
       <label id="name-label" hidden>Tu nombre<input name="nombre" autocomplete="given-name" minlength="2" maxlength="100" placeholder="¿Cómo te llamas?"></label>
       <label>Correo electrónico<input name="email" type="email" required autocomplete="email" placeholder="tu@correo.cl"></label>
       <label>Contraseña<input name="password" type="password" minlength="8" required autocomplete="current-password" placeholder="Tu contraseña"></label>
-      <p class="form-error" id="auth-error" role="alert"></p>
-      <button class="button full" id="auth-submit">Entrar a mi cuenta →</button>
+      <label id="confirm-label" hidden>Repite tu contraseña<input name="password_confirm" type="password" minlength="8" autocomplete="new-password" placeholder="Vuelve a escribirla"></label>
+      <p class="form-error auth-error" id="auth-error" role="alert" aria-live="polite"></p>
+      <button type="submit" class="button full" id="auth-submit">Entrar a mi cuenta →</button>
     </form>
     <p class="auth-hint muted small-text" id="auth-hint">Tu cuenta de cliente sólo muestra tus compras.</p>
   </div>

@@ -48,12 +48,22 @@ def cuenta(request):
             if not 2<=len(nombre)<=100: raise DjangoValidationError('Escribe tu nombre (2 a 100 caracteres).')
             validate_email(email)
             if len(email)>150: raise DjangoValidationError('Correo demasiado largo.')
+            if User.objects.filter(email__iexact=email).exists() or User.objects.filter(username__iexact=email).exists():
+                raise DjangoValidationError('Ese correo ya tiene una cuenta. Inicia sesión o prueba con otro correo.')
             user=User(username=email,email=email,first_name=nombre)
             validate_password(password,user)
             with transaction.atomic():
                 user.set_password(password); user.save()
         else:
-            user=authenticate(request,username=email,password=password)
+            # Los clientes nuevos usan el correo como nombre de usuario. Busca
+            # también por correo para que las cuentas antiguas y el equipo
+            # puedan iniciar sesión escribiendo siempre su email.
+            user_model=get_user_model()
+            account=user_model.objects.filter(email__iexact=email).order_by('pk').first()
+            if account is None:
+                account=user_model.objects.filter(username__iexact=email).first()
+            username=account.get_username() if account else email
+            user=authenticate(request,username=username,password=password)
             if user is None: return JsonResponse({'detail':'Correo o contraseña incorrectos.'},status=400)
         login(request,user); cache.delete(key)
         return JsonResponse({'usuario':usuario_data(user)})

@@ -255,14 +255,20 @@ label { color: var(--chocolate); font-size: 11px; font-weight: 700; }
 .auth-story > p { color: var(--muted); font-size: 14px; }
 .auth-flower { display: inline-block; color: #d6a78e; font-size: 96px; animation: cozy-drift 5s ease-in-out infinite; }
 .auth-card { padding: 42px; border: 1px solid rgba(239,231,222,.95); border-radius: 24px; background: var(--paper); box-shadow: var(--shadow-soft); }
+.auth-card { max-width: 470px; }
 .auth-card h2 { color: var(--chocolate); }
 .auth-card > p { line-height: 1.7; }
 .auth-toggle { color: var(--muted); }
 .auth-toggle .text-link { margin-left: 4px; }
 .auth-tabs, .auth-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 5px; margin-bottom: 22px; border: 1px solid var(--line); border-radius: 999px; background: #f7f1ea; }
-.auth-tabs button, .auth-mode-tabs button { min-height: 39px; padding: 8px 12px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; font: 700 11px var(--font); transition: color .2s ease, background .2s ease, box-shadow .2s ease; }
-.auth-tabs button.active, .auth-mode-tabs button.active { color: var(--chocolate); background: white; box-shadow: 0 3px 12px rgba(92,61,46,.09); }
-.auth-tabs button:hover, .auth-mode-tabs button:hover { color: var(--rose); }
+.auth-tabs { margin-bottom: 27px; background: #f5ece3; }
+.auth-tabs button, .auth-mode-tabs button { appearance: none; display: flex; min-width: 0; min-height: 43px; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; font: 700 11px var(--font); cursor: pointer; transition: color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease; }
+.auth-tabs button span { color: #c7866f; font-size: 14px; }
+.auth-tabs button.active, .auth-mode-tabs button.active { color: var(--chocolate); background: white; box-shadow: 0 3px 12px rgba(92,61,46,.1); }
+.auth-tabs button:hover, .auth-mode-tabs button:hover { color: var(--rose); transform: translateY(-1px); }
+.auth-tabs button:focus-visible, .auth-mode-tabs button:focus-visible { outline: 2px solid #d6a78e; outline-offset: 2px; }
+.auth-error:empty { display: none; }
+.auth-error:not(:empty) { padding: 11px 13px; border: 1px solid #f0d1c8; border-radius: 12px; color: var(--red); background: #fbebe7; }
 .auth-card form { margin-top: 20px; }
 .product-card[data-product] { cursor: pointer; }
 .product-card[data-product]:focus-visible { outline: 3px solid #d6a78e; outline-offset: 4px; }

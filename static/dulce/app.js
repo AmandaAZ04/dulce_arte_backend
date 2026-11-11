@@ -170,17 +170,18 @@ function checkoutModal(){
 function initAuth(){
   const form=document.querySelector('#auth-form'),roleTabs=[...document.querySelectorAll('[data-role-tab]')],modeTabs=[...document.querySelectorAll('[data-mode-tab]')],params=new URLSearchParams(location.search);
   let role=params.has('equipo')?'admin':'cliente',mode='login';
-  const nameLabel=document.querySelector('#name-label'),modeTabsBox=document.querySelector('#auth-mode-tabs'),error=document.querySelector('#auth-error'),submit=document.querySelector('#auth-submit');
+  const nameLabel=document.querySelector('#name-label'),confirmLabel=document.querySelector('#confirm-label'),modeTabsBox=document.querySelector('#auth-mode-tabs'),error=document.querySelector('#auth-error'),submit=document.querySelector('#auth-submit');
   function render(){
     const admin=role==='admin',registering=!admin&&mode==='registro';
     roleTabs.forEach(b=>{const selected=b.dataset.roleTab===role;b.classList.toggle('active',selected);b.setAttribute('aria-selected',String(selected));});
     modeTabsBox.hidden=admin;modeTabs.forEach(b=>{const selected=b.dataset.modeTab===mode;b.classList.toggle('active',selected);b.setAttribute('aria-selected',String(selected));});
     nameLabel.hidden=!registering;form.nombre.required=registering;form.nombre.disabled=!registering;
+    confirmLabel.hidden=!registering;form.password_confirm.required=registering;form.password_confirm.disabled=!registering;
     document.querySelector('#auth-eyebrow').textContent=admin?'ACCESO DEL EQUIPO':'TU RINCÓN DULCE';
     document.querySelector('#auth-title').textContent=registering?'Crea tu cuenta.':admin?'Bienvenida al taller.':'Qué gusto verte.';
     document.querySelector('#auth-description').textContent=admin?'Ingresa con la cuenta de administración del local.':'Inicia sesión o crea tu cuenta para encargar y seguir tus compras.';
     document.querySelector('#auth-hint').textContent=admin?'Sólo las cuentas autorizadas por el local pueden entrar al taller.':'Tu cuenta de cliente sólo muestra tus compras.';
-    submit.textContent=registering?'Crear mi cuenta →':admin?'Entrar a administración →':'Entrar a mi cuenta →';
+    submit.textContent=registering?'Crear mi cuenta →':admin?'Entrar al panel del local →':'Entrar a mi cuenta →';
     form.password.autocomplete=registering?'new-password':'current-password';error.textContent='';
   }
   roleTabs.forEach(b=>b.onclick=()=>{role=b.dataset.roleTab;mode='login';render();});
@@ -188,6 +189,8 @@ function initAuth(){
   form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;error.textContent='';
     try{
       const data=Object.fromEntries(new FormData(form));data.modo=role==='admin'?'login':mode;
+      if(data.modo==='registro'&&data.password!==data.password_confirm)throw Error('Las contraseñas no coinciden. Revísalas e inténtalo otra vez.');
+      delete data.password_confirm;
       const result=await D.api('cuenta/','POST',data);
       if(role==='admin'&&!result.usuario.equipo){await D.api('cuenta/','POST',{modo:'logout'});throw Error('Esta cuenta no tiene permisos de administración. Usa la cuenta autorizada por el local.');}
       location.href=role==='admin'?'/equipo/':params.has('producto')?'/producto/'+encodeURIComponent(params.get('producto'))+'/':'/';
